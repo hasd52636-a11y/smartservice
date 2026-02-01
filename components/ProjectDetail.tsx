@@ -296,6 +296,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
           onClick={setActiveTab} 
           icon={<QrCode size={20}/>} 
         />
+        <TabButton 
+          id="config" 
+          labelZh="AI配置" 
+          labelEn="AI Config" 
+          active={activeTab === 'config'} 
+          onClick={setActiveTab} 
+          icon={<Sparkles size={20}/>} 
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -549,6 +557,285 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
               complexLink={complexLink}
               qrImageUrl={qrImageUrl}
             />
+          )}
+
+          {activeTab === 'config' && (
+            <div className="space-y-8">
+              {/* AI 系统配置 */}
+              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                  <Sparkles className="text-violet-600" size={28} />
+                  AI 系统配置
+                </h3>
+                
+                {/* 系统提示词配置 */}
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">
+                      系统提示词 (System Instruction)
+                    </label>
+                    <textarea
+                      value={localProject.config.systemInstruction}
+                      onChange={(e) => {
+                        const updatedProject = {
+                          ...localProject,
+                          config: {
+                            ...localProject.config,
+                            systemInstruction: e.target.value
+                          }
+                        };
+                        autoSave(updatedProject);
+                      }}
+                      placeholder="定义AI助手的身份、语气、行为规范等..."
+                      className="w-full h-32 px-4 py-3 border border-slate-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      设置AI助手的身份定位、回复语气、专业领域和行为规范
+                    </p>
+                  </div>
+
+                  {/* 图片分析提示词 */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">
+                      图片分析提示词 (Vision Prompt)
+                    </label>
+                    <textarea
+                      value={localProject.config.visionPrompt}
+                      onChange={(e) => {
+                        const updatedProject = {
+                          ...localProject,
+                          config: {
+                            ...localProject.config,
+                            visionPrompt: e.target.value
+                          }
+                        };
+                        autoSave(updatedProject);
+                      }}
+                      placeholder="定义AI如何分析用户上传的图片..."
+                      className="w-full h-24 px-4 py-3 border border-slate-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      指导AI如何分析和解读用户上传的产品图片
+                    </p>
+                  </div>
+
+                  {/* 语音配置 */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">
+                      语音角色 (Voice Character)
+                    </label>
+                    <select
+                      value={localProject.config.voiceName}
+                      onChange={(e) => {
+                        const updatedProject = {
+                          ...localProject,
+                          config: {
+                            ...localProject.config,
+                            voiceName: e.target.value
+                          }
+                        };
+                        autoSave(updatedProject);
+                      }}
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                    >
+                      <option value="tongtong">童童 (甜美女声)</option>
+                      <option value="xiaoxiao">小小 (活泼女声)</option>
+                      <option value="xiaochen">小陈 (专业男声)</option>
+                      <option value="xiaoming">小明 (亲切男声)</option>
+                      <option value="xiaoli">小丽 (温柔女声)</option>
+                      <option value="xiaowang">小王 (稳重男声)</option>
+                    </select>
+                    <p className="text-xs text-slate-500 mt-2">
+                      选择AI语音合成的音色风格
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 功能开关配置 */}
+              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                  <ShieldCheck className="text-emerald-600" size={28} />
+                  功能开关
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* 多模态分析 */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-slate-800">多模态分析</h4>
+                      <p className="text-xs text-slate-600">图片、视频内容分析</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={localProject.config.multimodalEnabled}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              multimodalEnabled: e.target.checked
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                    </label>
+                  </div>
+
+                  {/* 视频聊天 */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-slate-800">视频聊天</h4>
+                      <p className="text-xs text-slate-600">实时视频交互功能</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={localProject.config.videoChatEnabled}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              videoChatEnabled: e.target.checked
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                    </label>
+                  </div>
+
+                  {/* 虚拟人头像 */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-slate-800">虚拟人头像</h4>
+                      <p className="text-xs text-slate-600">3D虚拟客服形象</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={localProject.config.avatarEnabled}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              avatarEnabled: e.target.checked
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                    </label>
+                  </div>
+
+                  {/* 智能标注 */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                    <div>
+                      <h4 className="font-bold text-slate-800">智能标注</h4>
+                      <p className="text-xs text-slate-600">视频标注和指导功能</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={localProject.config.annotationEnabled}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              annotationEnabled: e.target.checked
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* 预设模板 */}
+              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                  <FileText className="text-blue-600" size={28} />
+                  配置模板
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button
+                    onClick={() => {
+                      const updatedProject = {
+                        ...localProject,
+                        config: {
+                          ...localProject.config,
+                          systemInstruction: `你是${localProject.name}的专业售后客服助手。\n\n身份定位：\n- 专业的技术支持专家\n- 耐心、友好、专业的服务态度\n- 精通产品技术和故障排除\n\n回复原则：\n- 仅基于产品知识库回答问题\n- 不得回答知识库外的内容\n- 遇到复杂问题及时转接人工客服\n- 提供准确、实用的解决方案\n\n联系方式：\n技术支持热线：400-888-6666\n官方网站：www.aivirtualservice.com`,
+                          visionPrompt: `作为${localProject.name}的技术专家，请仔细分析这张图片：\n\n1. 识别产品型号和组件\n2. 检查安装是否正确\n3. 发现潜在问题和风险\n4. 提供具体的改进建议\n\n请基于产品知识库提供专业的分析和指导。`,
+                          voiceName: "tongtong"
+                        }
+                      };
+                      autoSave(updatedProject);
+                      alert('已应用专业客服模板！');
+                    }}
+                    className="p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
+                  >
+                    <h4 className="font-bold text-blue-800 mb-2">专业客服</h4>
+                    <p className="text-xs text-blue-600">正式、专业的技术支持风格</p>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const updatedProject = {
+                        ...localProject,
+                        config: {
+                          ...localProject.config,
+                          systemInstruction: `你是${localProject.name}的贴心AI助手！😊\n\n我的特点：\n- 活泼开朗，充满活力\n- 用温暖的语言与用户交流\n- 善于用简单易懂的方式解释技术问题\n- 会适当使用表情符号增加亲和力\n\n服务承诺：\n- 基于产品知识库提供准确信息 ✅\n- 遇到不确定的问题会诚实告知 💯\n- 及时引导联系人工客服 📞\n\n让我们一起解决问题吧！🚀`,
+                          visionPrompt: `让我来帮你分析这张图片！📸\n\n我会仔细查看：\n✨ 产品的安装情况\n✨ 可能存在的问题\n✨ 改进的小建议\n\n基于我们的产品知识，我会给你最贴心的指导！`,
+                          voiceName: "xiaoxiao"
+                        }
+                      };
+                      autoSave(updatedProject);
+                      alert('已应用亲切助手模板！');
+                    }}
+                    className="p-4 bg-pink-50 border border-pink-200 rounded-xl hover:bg-pink-100 transition-colors"
+                  >
+                    <h4 className="font-bold text-pink-800 mb-2">亲切助手</h4>
+                    <p className="text-xs text-pink-600">温暖、友好的交流风格</p>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const updatedProject = {
+                        ...localProject,
+                        config: {
+                          ...localProject.config,
+                          systemInstruction: `${localProject.name} 技术支持系统\n\n功能定位：\n- 高效的问题诊断和解决\n- 基于数据的准确分析\n- 标准化的服务流程\n\n操作规范：\n- 严格按照知识库内容回答\n- 提供结构化的解决方案\n- 记录问题类型和处理结果\n- 必要时升级至人工处理\n\n系统信息：\n支持热线：400-888-6666\n在线文档：www.aivirtualservice.com/docs`,
+                          visionPrompt: `系统分析模式启动\n\n图像识别流程：\n1. 产品识别与分类\n2. 安装状态评估\n3. 问题点定位\n4. 解决方案匹配\n\n输出标准化分析报告和操作建议。`,
+                          voiceName: "xiaochen"
+                        }
+                      };
+                      autoSave(updatedProject);
+                      alert('已应用技术专家模板！');
+                    }}
+                    className="p-4 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
+                  >
+                    <h4 className="font-bold text-slate-800 mb-2">技术专家</h4>
+                    <p className="text-xs text-slate-600">严谨、高效的技术风格</p>
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 

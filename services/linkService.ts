@@ -25,7 +25,6 @@ export class LinkService {
 
   // 设置自定义基础URL（用于生产环境部署）
   public setBaseUrl(baseUrl: string): void {
-    console.log('设置自定义基础URL:', baseUrl);
     this.customBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     
     // 重新生成所有项目的链接
@@ -34,7 +33,6 @@ export class LinkService {
 
   // 重新生成所有项目的链接
   private regenerateAllProjectLinks(): void {
-    console.log('重新生成所有项目的链接...');
     const projectIds = Array.from(this.projectLinks.keys());
     
     projectIds.forEach(projectId => {
@@ -156,14 +154,12 @@ export class LinkService {
   private getBaseUrl(): string {
     // 最高优先级：手动设置的自定义URL
     if (this.customBaseUrl) {
-      console.log('使用自定义基础URL:', this.customBaseUrl);
       return this.customBaseUrl;
     }
     
     // 优先使用环境变量中的基础URL（生产环境）
     // 在 Vite 中，环境变量通过 import.meta.env 访问
     if (import.meta.env.REACT_APP_BASE_URL) {
-      console.log('使用环境变量中的基础URL:', import.meta.env.REACT_APP_BASE_URL);
       return import.meta.env.REACT_APP_BASE_URL;
     }
     
@@ -181,12 +177,10 @@ export class LinkService {
         baseUrl += `:${port}`;
       }
       
-      console.log('从window.location生成基础URL:', baseUrl);
       return baseUrl;
     }
     
     // 后备方案（服务端渲染或其他环境）
-    console.log('使用后备基础URL: http://localhost:3001');
     return 'http://localhost:3001';
   }
 
@@ -196,7 +190,6 @@ export class LinkService {
     
     // 如果项目还没有生成链接，生成20个
     if (!shortCodes || shortCodes.length === 0) {
-      console.log(`项目 ${projectId} 还没有生成链接，正在生成...`);
       this.generateLinksForProject(projectId);
       shortCodes = this.projectLinks.get(projectId) || [];
     }
@@ -241,7 +234,6 @@ export class LinkService {
     }
 
     const fullLink = this.complexLinks.get(selectedShortCode) || '';
-    console.log(`为项目 ${projectId} 生成链接:`, fullLink);
     return fullLink;
   }
 
@@ -253,19 +245,12 @@ export class LinkService {
 
   // 根据shortCode获取对应的项目ID
   getProjectIdByShortCode(shortCode: string): string | null {
-    console.log('=== linkService.getProjectIdByShortCode ===');
-    console.log('shortCode:', shortCode);
-    console.log('projectLinks:', Object.fromEntries(this.projectLinks));
-    
     for (const [projectId, shortCodes] of this.projectLinks.entries()) {
-      console.log('检查项目:', projectId, 'shortCodes:', shortCodes);
       if (shortCodes.includes(shortCode)) {
-        console.log('找到匹配的项目ID:', projectId);
         return projectId;
       }
     }
     
-    console.log('未找到匹配的项目ID');
     return null;
   }
 

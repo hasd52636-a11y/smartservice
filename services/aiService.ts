@@ -228,7 +228,6 @@ export class AIService {
   }) {
     // 检查API密钥是否存在
     if (!this.zhipuApiKey) {
-      console.log('No API key available, using mock response');
       const mockResponse = this.generateMockResponse(prompt, knowledge);
       
       if (options?.stream && options?.callback) {
@@ -321,7 +320,6 @@ export class AIService {
       
       // 如果API调用失败，回退到模拟响应
       if (error instanceof Error && (error.message.includes('API key') || error.message.includes('401'))) {
-        console.log('API key error, falling back to mock response');
         const mockResponse = this.generateMockResponse(prompt, knowledge);
         
         if (options?.stream && options?.callback) {
@@ -1020,16 +1018,26 @@ export class AIService {
 
   // 生成模拟响应（当没有API密钥时使用）
   private generateMockResponse(prompt: string, knowledge: KnowledgeItem[]): string {
-    // 简单的关键词匹配来生成相关的模拟响应
-    const lowerPrompt = prompt.toLowerCase();
+    // 确保prompt是字符串类型，处理各种可能的输入
+    let promptStr = '';
+    if (typeof prompt === 'string') {
+      promptStr = prompt;
+    } else if (prompt && typeof prompt === 'object' && 'target' in prompt) {
+      // 如果是事件对象，尝试获取值
+      promptStr = (prompt as any).target?.value || '';
+    } else {
+      promptStr = String(prompt || '');
+    }
+    
+    const lowerPrompt = promptStr.toLowerCase();
     
     // 检查是否有相关的知识库内容
-    const relevantItems = this.retrieveRelevantKnowledge(prompt, knowledge);
+    const relevantItems = this.retrieveRelevantKnowledge(promptStr, knowledge);
     
     if (relevantItems.length > 0) {
       // 如果有相关知识，基于知识库内容生成响应
       const firstItem = relevantItems[0];
-      return `根据产品知识库，关于"${prompt}"的信息：\n\n${firstItem.content.substring(0, 200)}${firstItem.content.length > 200 ? '...' : ''}\n\n如需更详细信息，请联系中恒创世技术支持：400-888-6666`;
+      return `根据产品知识库，关于"${promptStr}"的信息：\n\n${firstItem.content.substring(0, 200)}${firstItem.content.length > 200 ? '...' : ''}\n\n如需更详细信息，请联系中恒创世技术支持：400-888-6666`;
     }
     
     // 常见问题的模拟响应
@@ -1050,7 +1058,7 @@ export class AIService {
     }
     
     // 默认响应
-    return `您好！我是智能售后客服助手。\n\n关于您的问题"${prompt}"，我需要更多信息来为您提供准确的解答。请您：\n\n1. 详细描述问题情况\n2. 提供产品型号\n3. 上传相关图片\n\n这样我能更好地为您服务。如需人工客服，请拨打：400-888-6666\n\n官网：www.aivirtualservice.com`;
+    return `您好！我是智能售后客服助手。\n\n关于您的问题"${promptStr}"，我需要更多信息来为您提供准确的解答。请您：\n\n1. 详细描述问题情况\n2. 提供产品型号\n3. 上传相关图片\n\n这样我能更好地为您服务。如需人工客服，请拨打：400-888-6666\n\n官网：www.aivirtualservice.com`;
   }
 
   // 模拟图片分析（当没有API密钥时使用）

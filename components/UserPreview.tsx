@@ -78,66 +78,40 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
 
   // 从服务端加载项目数据
   useEffect(() => {
-    console.log('=== 扫码流程开始 ===');
-    console.log('当前projectId:', projectId);
-    
     const loadProject = async () => {
-      console.log('1. 开始加载项目:', projectId);
       if (!projectId) {
-        console.log('2. 项目ID为空');
         setProjectError('无效的项目ID');
         setProjectLoading(false);
-        console.log('3. 处理空项目ID完成');
         return;
       }
 
       try {
-        console.log('4. 设置加载状态为true');
         setProjectLoading(true);
         setProjectError('');
-        console.log('5. 验证项目ID:', projectId);
         
         // 验证项目ID并获取项目数据
-        console.log('6. 调用projectService.validateProjectId');
         const validation = await projectService.validateProjectId(projectId);
-        console.log('7. 验证结果:', validation);
         
         if (!validation.valid) {
-          console.log('8. 项目验证失败:', validation.error);
           setProjectError(validation.error || '项目验证失败');
           setProjectLoading(false);
-          console.log('9. 处理验证失败完成');
           return;
         }
 
-        console.log('10. 项目验证成功:', validation.project);
         const validatedProject = validation.project!;
         
-        // 检查知识库
-        if (validatedProject.knowledgeBase && validatedProject.knowledgeBase.length > 0) {
-          console.log('11. 知识库加载成功:', validatedProject.knowledgeBase.length, '条条目');
-        } else {
-          console.log('11. 知识库为空，使用默认知识');
-        }
-        
         // 记录用户访问（匿名统计）
-        console.log('12. 记录用户访问');
         await projectService.logUserAccess(projectId, {
           timestamp: new Date().toISOString(),
           userAgent: navigator.userAgent,
           referrer: document.referrer
         });
         
-        console.log('13. 项目加载完成，准备更新状态');
-        
         // 直接更新状态，避免setTimeout可能导致的问题
-        console.log('14. 开始更新状态...');
-        console.log('14.1 设置project状态:', validatedProject.id, validatedProject.name);
         setProject(validatedProject);
         
         // 初始化messages状态 - 优化为售后客服定位
         const welcomeMessage = `您好！我是 ${validatedProject.name} 的智能售后客服助手 🤖\n\n我可以帮您解决：\n• 产品使用问题\n• 安装指导\n• 故障排查\n• 维护保养\n\n请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`;
-        console.log('14.2 设置欢迎消息:', welcomeMessage);
         setMessages([
           { 
             role: 'assistant', 
@@ -145,15 +119,11 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           }
         ]);
         
-        console.log('14.3 设置projectLoading为false');
         setProjectLoading(false);
-        console.log('15. 状态更新完成，项目已就绪');
-        console.log('=== 扫码流程结束 ===');
       } catch (error) {
-        console.error('16. 加载项目失败:', error);
+        console.error('加载项目失败:', error);
         setProjectError('加载项目信息失败，请稍后重试');
         setProjectLoading(false);
-        console.log('17. 处理错误完成');
       }
     };
 
@@ -572,12 +542,8 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   };
 
   const handleSend = async (text?: string, image?: string) => {
-    console.log('=== 开始处理发送消息 ===');
-    console.log('发送内容:', { text, image });
-    
     const msgText = text || inputValue;
     if (!msgText && !image) {
-      console.log('消息为空，不处理');
       return;
     }
     if (!project) {
@@ -588,16 +554,13 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
     try {
       // 立即添加用户消息到界面
       const userMessage = { role: 'user' as const, text: msgText, image };
-      console.log('添加用户消息:', userMessage);
       setMessages(prev => [...prev, userMessage]);
       setInputValue('');
       setIsTyping(true);
 
       // 简化处理逻辑，让AI服务自动处理API密钥和回退逻辑
       if (image) {
-        console.log('处理图片消息');
         if (!project.config.multimodalEnabled) {
-          console.log('多模态分析功能已禁用');
           setMessages(prev => [...prev, { role: 'assistant', text: "多模态分析功能已禁用，无法分析图片内容。" }]);
         } else {
           try {
@@ -608,9 +571,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             }
             
             // 图片分析 - AI服务会自动处理API密钥缺失的情况
-            console.log('开始分析图片...');
             const response = await aiService.analyzeInstallation(image, project.config.visionPrompt, project.config.provider);
-            console.log('图片分析结果:', response);
             setMessages(prev => [...prev, { role: 'assistant', text: response }]);
           } catch (error) {
             console.error('图片分析失败:', error);
@@ -618,11 +579,8 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           }
         }
       } else {
-        console.log('处理文本消息:', msgText);
-        
         // 确保知识库存在
         const knowledgeBase = project.knowledgeBase || [];
-        console.log('知识库大小:', knowledgeBase.length);
 
         try {
           // 设置API密钥（如果存在的话）
@@ -633,7 +591,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           
           // 对于文本消息，使用流式输出
           const newMessageId = messages.length + 1;
-          console.log('新消息ID:', newMessageId);
           setStreamingId(newMessageId);
           setStreamingMessage('');
 
@@ -643,31 +600,32 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           const UPDATE_INTERVAL = 100; // 限制更新频率，避免频繁渲染
           
           const streamCallback = (chunk: string, isDone: boolean) => {
-            console.log('收到流式响应:', { chunk, isDone });
-            if (chunk) {
-              accumulatedMessage += chunk;
-              
-              // 限制更新频率，避免频繁渲染
-              const now = Date.now();
-              if (now - lastUpdateTime > UPDATE_INTERVAL || isDone) {
-                console.log('更新流式消息:', accumulatedMessage);
-                setStreamingMessage(accumulatedMessage);
-                lastUpdateTime = now;
+            try {
+              if (chunk) {
+                accumulatedMessage += chunk;
+                
+                // 限制更新频率，避免频繁渲染
+                const now = Date.now();
+                if (now - lastUpdateTime > UPDATE_INTERVAL || isDone) {
+                  setStreamingMessage(accumulatedMessage);
+                  lastUpdateTime = now;
+                }
               }
-            }
-            if (isDone) {
-              console.log('流式响应完成:', accumulatedMessage);
-              if (accumulatedMessage) {
-                setMessages(prev => [...prev, { role: 'assistant', text: accumulatedMessage }]);
+              if (isDone) {
+                if (accumulatedMessage) {
+                  setMessages(prev => [...prev, { role: 'assistant', text: accumulatedMessage }]);
+                }
+                setStreamingId(null);
+                setStreamingMessage(null);
               }
+            } catch (callbackError) {
+              console.error('Stream callback error:', callbackError);
               setStreamingId(null);
               setStreamingMessage(null);
             }
           };
 
           // 调用AI服务，使用流式输出 - AI服务会自动处理API密钥缺失的情况
-          console.log('调用AI服务获取智能响应...');
-          
           // 添加超时处理
           const timeoutPromise = new Promise<void>((_, reject) => {
             setTimeout(() => reject(new Error('AI服务响应超时')), 30000); // 30秒超时
@@ -686,7 +644,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             ),
             timeoutPromise
           ]);
-          console.log('AI服务调用完成');
         } catch (error) {
           console.error('AI服务调用失败:', error);
           
@@ -705,7 +662,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             }
           }
           
-          console.log('显示错误消息:', errorMessage);
           setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
           setStreamingId(null);
           setStreamingMessage(null);
@@ -717,7 +673,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       setStreamingId(null);
       setStreamingMessage(null);
     } finally {
-      console.log('=== 消息处理完成 ===');
       setIsTyping(false);
     }
   };
@@ -1161,11 +1116,11 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                   <input 
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                     placeholder="问我关于此产品的问题..."
                     className="w-full bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20"
                   />
-                  <button onClick={handleSend} className="absolute right-2 top-1.5 p-2 purple-gradient-btn text-white rounded-lg">
+                  <button onClick={() => handleSend()} className="absolute right-2 top-1.5 p-2 purple-gradient-btn text-white rounded-lg">
                     <Send size={16} />
                   </button>
                 </div>
@@ -1348,11 +1303,11 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
               <input 
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                 placeholder="问我关于此产品的问题..."
                 className="w-full bg-white/5 border border-white/10 px-5 py-4 rounded-xl text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20 pr-16"
               />
-              <button onClick={handleSend} className="absolute right-2 top-2 p-2 purple-gradient-btn text-white rounded-lg">
+              <button onClick={() => handleSend()} className="absolute right-2 top-2 p-2 purple-gradient-btn text-white rounded-lg">
                 <Send size={18} />
               </button>
             </div>
