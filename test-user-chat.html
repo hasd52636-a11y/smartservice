@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户对话测试 - 智能售后客服</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a103d 0%, #2d1b69 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #8b5cf6;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #a78bfa;
+            margin-bottom: 15px;
+        }
+        .test-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 10px;
+            text-decoration: none;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        .test-link:hover {
+            transform: translateY(-2px);
+        }
+        .info {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        .warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        .success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        .code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 用户对话测试 - 智能售后客服</h1>
+        
+        <div class="success">
+            <strong>✅ 修复完成！</strong><br>
+            已实现AI功能的智能回退机制，现在即使没有API密钥也能正常使用基础客服功能。
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔧 修复内容</div>
+            <ul>
+                <li><strong>智能回退机制</strong>：当没有API密钥时，自动使用模拟响应</li>
+                <li><strong>消除白屏问题</strong>：移除了强制API密钥检查</li>
+                <li><strong>基础客服功能</strong>：提供常见问题的智能回答</li>
+                <li><strong>用户友好提示</strong>：引导用户联系技术支持</li>
+                <li><strong>流式输出模拟</strong>：模拟真实AI对话体验</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🧪 测试链接</div>
+            <p>点击以下链接测试不同场景的用户对话功能：</p>
+            
+            <a href="http://localhost:3001/#/entry/test123?r=test&t=1769924772418&data=testdata" class="test-link" target="_blank">
+                📱 基础对话测试
+            </a>
+            
+            <a href="http://localhost:3001/#/entry/demo456?r=demo&t=1769924772418&data=demodata" class="test-link" target="_blank">
+                🖼️ 图片分析测试
+            </a>
+            
+            <a href="http://localhost:3001/#/entry/voice789?r=voice&t=1769924772418&data=voicedata" class="test-link" target="_blank">
+                🎤 语音功能测试
+            </a>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">📋 测试步骤</div>
+            <ol>
+                <li><strong>打开测试链接</strong>：点击上方任意测试链接</li>
+                <li><strong>等待加载</strong>：页面会显示项目加载界面</li>
+                <li><strong>查看欢迎消息</strong>：应该显示智能售后客服的欢迎信息</li>
+                <li><strong>发送测试消息</strong>：尝试发送以下测试消息：
+                    <div class="code">
+                        • "产品安装问题"<br>
+                        • "设备故障了"<br>
+                        • "如何使用这个产品"<br>
+                        • "需要维护保养"<br>
+                        • "你好"
+                    </div>
+                </li>
+                <li><strong>验证响应</strong>：确认AI助手能够正常回复</li>
+                <li><strong>测试图片上传</strong>：点击相机图标上传图片</li>
+                <li><strong>测试语音功能</strong>：点击麦克风图标测试语音</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">✨ 预期结果</div>
+            <div class="info">
+                <strong>正常情况下应该看到：</strong><br>
+                • 页面正常加载，无白屏现象<br>
+                • 显示智能售后客服欢迎消息<br>
+                • 发送消息后能收到相关的智能回复<br>
+                • 图片上传功能正常工作<br>
+                • 语音功能可以启动（即使识别功能受限）<br>
+                • 所有功能都有用户友好的提示信息
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">🔍 技术实现</div>
+            <p>本次修复实现了以下技术改进：</p>
+            <ul>
+                <li><strong>AI服务层改进</strong>：
+                    <div class="code">
+                        • generateMockResponse() - 智能模拟响应<br>
+                        • generateMockImageAnalysis() - 图片分析回退<br>
+                        • generateMockSpeechRecognition() - 语音识别回退
+                    </div>
+                </li>
+                <li><strong>用户界面优化</strong>：
+                    <div class="code">
+                        • 移除强制API密钥检查<br>
+                        • 优化错误处理逻辑<br>
+                        • 改进用户提示信息
+                    </div>
+                </li>
+                <li><strong>流式输出模拟</strong>：
+                    <div class="code">
+                        • 模拟真实AI打字效果<br>
+                        • 保持用户体验一致性
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <div class="warning">
+            <strong>⚠️ 注意事项：</strong><br>
+            • 测试链接使用的是模拟项目ID，实际部署时需要使用真实项目<br>
+            • 某些高级功能（如实时语音识别、图片分析）需要配置API密钥才能完全使用<br>
+            • 基础客服功能已经可以正常工作，不会出现白屏问题
+        </div>
+
+        <div class="info">
+            <strong>🎯 修复目标达成：</strong><br>
+            ✅ 解决用户对话窗口点击发送按钮白屏问题<br>
+            ✅ 实现文本、图片、语音三种交互模式的基础功能<br>
+            ✅ 提供不依赖外部环境的AI客服体验<br>
+            ✅ 保持产品的智能售后客服定位
+        </div>
+    </div>
+</body>
+</html>

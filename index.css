@@ -1,3 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Custom styles */
+:root {
+  --glass-bg: rgba(243, 244, 246, 0.8);
+  --glass-border: rgba(229, 231, 235, 0.8);
+  --purple-primary: #7c3aed;
+  --gold-accent: #f59e0b;
+  --gold-glow: rgba(245, 158, 11, 0.3);
+  --purple-glow: rgba(124, 58, 237, 0.4);
+}

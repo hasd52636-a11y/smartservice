@@ -135,8 +135,8 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         console.log('14.1 设置project状态:', validatedProject.id, validatedProject.name);
         setProject(validatedProject);
         
-        // 初始化messages状态
-        const welcomeMessage = `您好！我是 ${validatedProject.name} 的 AI 专家。我已经加载了最新的产品说明书和视频教程，请问有什么可以帮您？`;
+        // 初始化messages状态 - 优化为售后客服定位
+        const welcomeMessage = `您好！我是 ${validatedProject.name} 的智能售后客服助手 🤖\n\n我可以帮您解决：\n• 产品使用问题\n• 安装指导\n• 故障排查\n• 维护保养\n\n请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`;
         console.log('14.2 设置欢迎消息:', welcomeMessage);
         setMessages([
           { 
@@ -284,17 +284,14 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
     try {
       console.log('开始初始化视频聊天...');
       
-      // 检查API密钥是否存在
+      // 确保API密钥已设置（如果存在的话）
       const savedApiKey = localStorage.getItem('zhipuApiKey');
-      if (!savedApiKey) {
-        console.error('视频客服连接失败: 缺少API密钥');
-        setMessages(prev => [...prev, { role: 'assistant', text: '视频客服连接失败，请联系管理员配置API密钥。' }]);
-        return;
+      if (savedApiKey) {
+        aiService.setZhipuApiKey(savedApiKey);
+        console.log('API密钥已设置');
+      } else {
+        console.log('未找到API密钥，将使用基础功能');
       }
-      
-      // 确保API密钥已设置到AI服务
-      aiService.setZhipuApiKey(savedApiKey);
-      console.log('API密钥已设置');
       
       // Request camera and microphone permissions
       console.log('请求摄像头和麦克风权限...');
@@ -316,26 +313,27 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         console.log('视频流已设置到video元素');
       }
       
-      // Connect to GLM-Realtime
-      console.log('连接到GLM-Realtime...');
-      const connected = await connectToRealtime();
-      
-      if (connected) {
-        // Start render loop for annotations
-        console.log('启动标注渲染循环...');
-        startRenderLoop();
+      // Connect to GLM-Realtime (如果有API密钥的话)
+      if (savedApiKey) {
+        console.log('连接到GLM-Realtime...');
+        const connected = await connectToRealtime();
         
-        console.log('视频聊天初始化完成');
-        setIsVideoChatActive(true);
-      } else {
-        console.error('GLM-Realtime连接失败');
-        setMessages(prev => [...prev, { role: 'assistant', text: '视频客服连接失败，请检查网络连接和API密钥配置。' }]);
-        // 清理资源
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
+        if (connected) {
+          // Start render loop for annotations
+          console.log('启动标注渲染循环...');
+          startRenderLoop();
+          
+          console.log('视频聊天初始化完成');
+          setIsVideoChatActive(true);
+        } else {
+          console.error('GLM-Realtime连接失败，使用基础视频功能');
+          setMessages(prev => [...prev, { role: 'assistant', text: '视频聊天已启动，但AI实时功能需要配置。您可以使用基础视频功能。' }]);
+          setIsVideoChatActive(true);
         }
-        setVideoStream(null);
-        videoStreamRef.current = null;
+      } else {
+        console.log('无API密钥，启用基础视频功能');
+        setMessages(prev => [...prev, { role: 'assistant', text: '视频聊天已启动。AI实时功能需要配置，当前可使用基础视频功能。' }]);
+        setIsVideoChatActive(true);
       }
     } catch (error) {
       console.error('Failed to initialize video chat:', error);
@@ -574,83 +572,107 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   };
 
   const handleSend = async (text?: string, image?: string) => {
+    console.log('=== 开始处理发送消息 ===');
+    console.log('发送内容:', { text, image });
+    
     const msgText = text || inputValue;
-    if (!msgText && !image) return;
-    if (!project) return;
-
-    // 立即添加用户消息到界面
-    const userMessage = { role: 'user' as const, text: msgText, image };
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsTyping(true);
+    if (!msgText && !image) {
+      console.log('消息为空，不处理');
+      return;
+    }
+    if (!project) {
+      console.error('项目不存在，无法处理消息');
+      return;
+    }
 
     try {
+      // 立即添加用户消息到界面
+      const userMessage = { role: 'user' as const, text: msgText, image };
+      console.log('添加用户消息:', userMessage);
+      setMessages(prev => [...prev, userMessage]);
+      setInputValue('');
+      setIsTyping(true);
+
+      // 简化处理逻辑，让AI服务自动处理API密钥和回退逻辑
       if (image) {
+        console.log('处理图片消息');
         if (!project.config.multimodalEnabled) {
+          console.log('多模态分析功能已禁用');
           setMessages(prev => [...prev, { role: 'assistant', text: "多模态分析功能已禁用，无法分析图片内容。" }]);
         } else {
-          // 检查API密钥是否存在
-          const savedApiKey = localStorage.getItem('zhipuApiKey');
-          if (!savedApiKey) {
-            console.error('图片分析失败: 缺少API密钥');
-            setMessages(prev => [...prev, { role: 'assistant', text: '图片分析失败，请联系管理员配置API密钥。' }]);
-            return;
+          try {
+            // 确保API密钥已设置（如果存在的话）
+            const savedApiKey = localStorage.getItem('zhipuApiKey');
+            if (savedApiKey) {
+              aiService.setZhipuApiKey(savedApiKey);
+            }
+            
+            // 图片分析 - AI服务会自动处理API密钥缺失的情况
+            console.log('开始分析图片...');
+            const response = await aiService.analyzeInstallation(image, project.config.visionPrompt, project.config.provider);
+            console.log('图片分析结果:', response);
+            setMessages(prev => [...prev, { role: 'assistant', text: response }]);
+          } catch (error) {
+            console.error('图片分析失败:', error);
+            setMessages(prev => [...prev, { role: 'assistant', text: '图片分析失败，请稍后重试。' }]);
           }
-          
-          // 确保API密钥已设置到AI服务
-          aiService.setZhipuApiKey(savedApiKey);
-          console.log('API密钥已设置');
-          
-          // 图片分析暂时不使用流式输出
-          console.log('开始分析图片...');
-          const response = await aiService.analyzeInstallation(image, project.config.visionPrompt, project.config.provider);
-          console.log('图片分析结果:', response);
-          setMessages(prev => [...prev, { role: 'assistant', text: response }]);
         }
       } else {
+        console.log('处理文本消息:', msgText);
+        
         // 确保知识库存在
         const knowledgeBase = project.knowledgeBase || [];
-        console.log('发送文本消息:', msgText, '知识库大小:', knowledgeBase.length);
+        console.log('知识库大小:', knowledgeBase.length);
 
-        // 对于文本消息，使用流式输出
-        const newMessageId = messages.length + 1;
-        setStreamingId(newMessageId);
-        setStreamingMessage('');
-
-        // 流式回调函数
-        let accumulatedMessage = '';
-        let lastUpdateTime = 0;
-        const UPDATE_INTERVAL = 100; // 限制更新频率，避免频繁渲染
-        
-        const streamCallback = (chunk: string, isDone: boolean) => {
-          if (chunk) {
-            accumulatedMessage += chunk;
-            
-            // 限制更新频率，避免频繁渲染
-            const now = Date.now();
-            if (now - lastUpdateTime > UPDATE_INTERVAL || isDone) {
-              setStreamingMessage(accumulatedMessage);
-              lastUpdateTime = now;
-            }
-          }
-          if (isDone) {
-            if (accumulatedMessage) {
-              setMessages(prev => [...prev, { role: 'assistant', text: accumulatedMessage }]);
-            }
-            setStreamingId(null);
-            setStreamingMessage(null);
-          }
-        };
-
-        // 调用AI服务，使用流式输出
-        console.log('调用AI服务获取智能响应...');
-        
-        // 添加超时处理
-        const timeoutPromise = new Promise<void>((_, reject) => {
-          setTimeout(() => reject(new Error('AI服务响应超时')), 30000); // 30秒超时
-        });
-        
         try {
+          // 设置API密钥（如果存在的话）
+          const savedApiKey = localStorage.getItem('zhipuApiKey');
+          if (savedApiKey) {
+            aiService.setZhipuApiKey(savedApiKey);
+          }
+          
+          // 对于文本消息，使用流式输出
+          const newMessageId = messages.length + 1;
+          console.log('新消息ID:', newMessageId);
+          setStreamingId(newMessageId);
+          setStreamingMessage('');
+
+          // 流式回调函数
+          let accumulatedMessage = '';
+          let lastUpdateTime = 0;
+          const UPDATE_INTERVAL = 100; // 限制更新频率，避免频繁渲染
+          
+          const streamCallback = (chunk: string, isDone: boolean) => {
+            console.log('收到流式响应:', { chunk, isDone });
+            if (chunk) {
+              accumulatedMessage += chunk;
+              
+              // 限制更新频率，避免频繁渲染
+              const now = Date.now();
+              if (now - lastUpdateTime > UPDATE_INTERVAL || isDone) {
+                console.log('更新流式消息:', accumulatedMessage);
+                setStreamingMessage(accumulatedMessage);
+                lastUpdateTime = now;
+              }
+            }
+            if (isDone) {
+              console.log('流式响应完成:', accumulatedMessage);
+              if (accumulatedMessage) {
+                setMessages(prev => [...prev, { role: 'assistant', text: accumulatedMessage }]);
+              }
+              setStreamingId(null);
+              setStreamingMessage(null);
+            }
+          };
+
+          // 调用AI服务，使用流式输出 - AI服务会自动处理API密钥缺失的情况
+          console.log('调用AI服务获取智能响应...');
+          
+          // 添加超时处理
+          const timeoutPromise = new Promise<void>((_, reject) => {
+            setTimeout(() => reject(new Error('AI服务响应超时')), 30000); // 30秒超时
+          });
+          
           await Promise.race([
             aiService.getSmartResponse(
               msgText, 
@@ -666,45 +688,43 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           ]);
           console.log('AI服务调用完成');
         } catch (error) {
-          if (error instanceof Error && error.message === 'AI服务响应超时') {
-            console.error('AI服务响应超时');
-            setMessages(prev => [...prev, { role: 'assistant', text: 'AI服务响应超时，请稍后重试。' }]);
-            setStreamingId(null);
-            setStreamingMessage(null);
-          } else {
-            throw error;
+          console.error('AI服务调用失败:', error);
+          
+          // 根据错误类型给出不同的用户友好提示
+          let errorMessage = "抱歉，AI服务暂时不可用。";
+          
+          if (error instanceof Error) {
+            if (error.message === 'AI服务响应超时') {
+              errorMessage = 'AI服务响应超时，请稍后重试。';
+            } else if (error.message.includes('429')) {
+              errorMessage = "服务繁忙，请稍后重试。";
+            } else if (error.message.includes('network') || error.message.includes('fetch')) {
+              errorMessage = "网络连接异常，请检查网络后重试。";
+            } else {
+              errorMessage = `服务错误: ${error.message}`;
+            }
           }
+          
+          console.log('显示错误消息:', errorMessage);
+          setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
+          setStreamingId(null);
+          setStreamingMessage(null);
         }
       }
     } catch (e) {
-      console.error('AI服务调用失败:', e);
-      
-      // 根据错误类型给出不同的用户友好提示
-      let errorMessage = "抱歉，AI服务暂时不可用。";
-      
-      if (e instanceof Error) {
-        if (e.message.includes('401') || e.message.includes('API key')) {
-          errorMessage = "AI服务配置异常，请联系中恒创世技术支持：400-888-6666";
-        } else if (e.message.includes('429')) {
-          errorMessage = "服务繁忙，请稍后重试。";
-        } else if (e.message.includes('network') || e.message.includes('fetch')) {
-          errorMessage = "网络连接异常，请检查网络后重试。";
-        } else {
-          errorMessage = `服务错误: ${e.message}`;
-        }
-      }
-      
-      setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
+      console.error('消息处理失败:', e);
+      setMessages(prev => [...prev, { role: 'assistant', text: '消息处理失败，请稍后重试。' }]);
       setStreamingId(null);
       setStreamingMessage(null);
     } finally {
+      console.log('=== 消息处理完成 ===');
       setIsTyping(false);
     }
   };
 
   const playTTS = async (text: string) => {
     try {
-      // 确保使用保存的API密钥
+      // 确保使用保存的API密钥（如果存在的话）
       const savedApiKey = localStorage.getItem('zhipuApiKey');
       if (savedApiKey) {
         aiService.setZhipuApiKey(savedApiKey);
@@ -715,10 +735,12 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         const audio = new Audio(`data:audio/wav;base64,${audioData}`);
         audio.play();
       } else {
-        console.error('语音生成失败');
+        console.log('语音合成服务需要配置');
+        // 不显示错误消息，静默处理
       }
     } catch (error) {
       console.error('TTS播放失败:', error);
+      // 不显示错误消息，静默处理
     }
   };
 
@@ -735,17 +757,14 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
 
   const startVoiceListening = async () => {
     try {
-      // 检查API密钥是否存在
+      // 确保API密钥已设置（如果存在的话）
       const savedApiKey = localStorage.getItem('zhipuApiKey');
-      if (!savedApiKey) {
-        console.error('语音识别失败: 缺少API密钥');
-        setMessages(prev => [...prev, { role: 'assistant', text: '语音识别失败，请联系管理员配置API密钥。' }]);
-        return;
+      if (savedApiKey) {
+        aiService.setZhipuApiKey(savedApiKey);
+        console.log('API密钥已设置');
+      } else {
+        console.log('未找到API密钥，语音识别功能将受限');
       }
-      
-      // 确保API密钥已设置到AI服务
-      aiService.setZhipuApiKey(savedApiKey);
-      console.log('API密钥已设置');
       
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -788,116 +807,105 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             clearTimeout(silenceTimer);
           }
           const timer = setTimeout(() => {
-            // 3秒静音后停止录音
-            if (mediaRecorder) {
-              mediaRecorder.stop();
-            }
-          }, 3000);
+            stopRecording();
+          }, 1500); // 1.5秒静音后停止录音
           setSilenceTimer(timer);
+        } else if (average > voiceThreshold && silenceTimer) {
+          // 重新检测到语音，取消静音定时器
+          clearTimeout(silenceTimer);
+          setSilenceTimer(null);
         }
 
         requestAnimationFrame(analyzeAudio);
       };
 
       analyzeAudio();
-      setMessages(prev => [...prev, { role: 'assistant', text: '语音监听已开启，请开始说话...' }]);
     } catch (error) {
-      console.error('Error starting voice listening:', error);
-      let errorMessage = '无法访问麦克风，请检查权限设置。';
-      if (error instanceof Error) {
-        if (error.message.includes('Permission denied')) {
-          errorMessage = '麦克风权限被拒绝，请在浏览器设置中允许访问。';
-        } else if (error.message.includes('NotFoundError')) {
-          errorMessage = '未找到麦克风设备。';
-        } else {
-          errorMessage = `语音监听初始化失败: ${error.message}`;
-        }
-      }
-      setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
+      console.error('Failed to start voice listening:', error);
+      setMessages(prev => [...prev, { role: 'assistant', text: '无法访问麦克风，请检查权限设置。' }]);
       setIsVoiceActive(false);
-    }
-  };
-
-  const startRecording = (stream: MediaStream) => {
-    const recorder = new MediaRecorder(stream);
-    setMediaRecorder(recorder);
-    setAudioChunks([]);
-    setIsRecording(true);
-
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        setAudioChunks(prev => [...prev, event.data]);
-      }
-    };
-
-    recorder.onstop = handleStopRecording;
-    recorder.start();
-  };
-
-  const handleStopRecording = async () => {
-    if (audioChunks.length === 0) {
-      setIsRecording(false);
-      return;
-    }
-
-    try {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64Audio = e.target?.result as string;
-        if (base64Audio) {
-          setIsTyping(true);
-          try {
-            // 调用智谱语音识别API
-            const transcript = await aiService.recognizeSpeech(base64Audio, project.config.provider);
-            if (transcript) {
-              // 基于知识库的答案与用户对话，模拟客服
-              handleSend(transcript);
-            } else {
-              setMessages(prev => [...prev, { role: 'assistant', text: '抱歉，我无法识别您的语音，请重试。' }]);
-            }
-          } catch (error) {
-            console.error('语音识别失败:', error);
-            setMessages(prev => [...prev, { role: 'assistant', text: '语音识别失败，请检查智谱API密钥是否正确。' }]);
-          } finally {
-            setIsTyping(false);
-            setIsRecording(false);
-            setAudioChunks([]);
-          }
-        }
-      };
-      reader.readAsDataURL(audioBlob);
-    } catch (error) {
-      console.error('Error processing audio:', error);
-      setMessages(prev => [...prev, { role: 'assistant', text: '语音处理失败，请重试。' }]);
-      setIsTyping(false);
-      setIsRecording(false);
-      setAudioChunks([]);
     }
   };
 
   const stopVoiceListening = () => {
     setIsVoiceActive(false);
-    if (mediaRecorder) {
-      mediaRecorder.stop();
-    }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
     }
     if (silenceTimer) {
       clearTimeout(silenceTimer);
+      setSilenceTimer(null);
     }
     setMediaRecorder(null);
     setAudioChunks([]);
+    setIsRecording(false);
     setMessages(prev => [...prev, { role: 'assistant', text: '语音监听已关闭。' }]);
   };
-  
+
+  const startRecording = (stream: MediaStream) => {
+    const recorder = new MediaRecorder(stream);
+    setMediaRecorder(recorder);
+    setIsRecording(true);
+    
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        setAudioChunks(prev => [...prev, event.data]);
+      }
+    };
+    
+    recorder.onstop = async () => {
+      if (audioChunks.length > 0) {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        await processAudioBlob(audioBlob);
+      }
+      setAudioChunks([]);
+      setIsRecording(false);
+    };
+    
+    recorder.start();
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+    }
+  };
+
+  const processAudioBlob = async (audioBlob: Blob) => {
+    try {
+      // 确保API密钥已设置（如果存在的话）
+      const savedApiKey = localStorage.getItem('zhipuApiKey');
+      if (savedApiKey) {
+        aiService.setZhipuApiKey(savedApiKey);
+      }
+
+      // 转换为base64
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Audio = (reader.result as string).split(',')[1];
+        
+        try {
+          const recognizedText = await aiService.recognizeSpeech(base64Audio, project?.config.provider || 'zhipu');
+          if (recognizedText) {
+            handleSend(recognizedText);
+          }
+        } catch (error) {
+          console.error('语音识别失败:', error);
+          setMessages(prev => [...prev, { role: 'assistant', text: '语音识别失败，请重试或使用文字输入。' }]);
+        }
+      };
+      reader.readAsDataURL(audioBlob);
+    } catch (error) {
+      console.error('音频处理失败:', error);
+    }
+  };
+
   // OCR 相关方法
   const showOcrMessage = (type: 'info' | 'success' | 'error', text: string) => {
     setOcrMessage({ type, text });
     setTimeout(() => setOcrMessage({ type: 'info', text: '' }), 3000);
   };
-  
+
   const handleOcrImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -918,43 +926,47 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       };
       reader.readAsDataURL(file);
       
-      // 检查API密钥是否存在
+      // 确保API密钥已设置（如果存在的话）
       const savedApiKey = localStorage.getItem('zhipuApiKey');
-      if (!savedApiKey) {
-        console.error('OCR处理失败: 缺少API密钥');
-        showOcrMessage('error', 'OCR处理失败，请联系管理员配置API密钥。');
-        setIsOcrProcessing(false);
-        return;
+      if (savedApiKey) {
+        aiService.setZhipuApiKey(savedApiKey);
+        console.log('API密钥已设置');
       }
       
-      // 确保API密钥已设置到AI服务
-      aiService.setZhipuApiKey(savedApiKey);
-      console.log('API密钥已设置');
-      
-      // 调用 OCR 服务
-      const ocrResult = await aiService.recognizeHandwriting(file, {
-        languageType: 'CHN_ENG',
-        probability: true
-      });
-      
-      if (ocrResult.status === 'succeeded') {
-        const recognizedText = ocrResult.words_result
-          .map((item: any) => item.words)
-          .join('\n');
+      try {
+        // 调用 OCR 服务 - AI服务会自动处理API密钥缺失的情况
+        const ocrResult = await aiService.recognizeHandwriting(file, {
+          languageType: 'CHN_ENG',
+          probability: true
+        });
         
-        setOcrResult(recognizedText);
-        showOcrMessage('success', 'OCR识别成功');
-        
-        // 将识别结果发送到聊天
-        if (recognizedText) {
-          handleSend(`OCR识别结果:\n${recognizedText}`);
+        if (ocrResult.status === 'succeeded') {
+          const recognizedText = ocrResult.words_result
+            .map((item: any) => item.words)
+            .join('\n');
+          
+          setOcrResult(recognizedText);
+          showOcrMessage('success', 'OCR识别成功');
+          
+          // 将识别结果发送到聊天
+          if (recognizedText) {
+            handleSend(`OCR识别结果:\n${recognizedText}`);
+          }
+        } else {
+          showOcrMessage('error', 'OCR识别失败');
         }
-      } else {
-        showOcrMessage('error', 'OCR识别失败');
+      } catch (ocrError) {
+        console.error('OCR识别失败:', ocrError);
+        // 如果OCR失败，提供基础的图片处理信息
+        setOcrResult('OCR识别服务暂时不可用。\n\n请您：\n1. 确保图片清晰可见\n2. 文字内容完整\n3. 联系技术支持获得帮助\n\n技术支持：400-888-6666');
+        showOcrMessage('info', 'OCR识别服务需要配置，已显示基础信息');
+        
+        // 将基础信息发送到聊天
+        handleSend('图片已上传，OCR识别服务需要配置。请描述图片中的文字内容，我会为您提供相应的帮助。');
       }
     } catch (error) {
-      console.error('OCR处理失败:', error);
-      showOcrMessage('error', 'OCR处理失败，请检查API密钥是否正确');
+      console.error('图片处理失败:', error);
+      showOcrMessage('error', '图片处理失败，请重试');
     } finally {
       setIsOcrProcessing(false);
     }

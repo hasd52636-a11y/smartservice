@@ -10,6 +10,7 @@ export class LinkService {
   private projectCurrentIndex: Map<string, number> = new Map(); // 每个项目的当前索引
   private maxLinksPerProject = 20;
   private maxActiveLinks = 10;
+  private customBaseUrl: string | null = null; // 自定义基础URL
 
   private constructor() {
     this.initialize();
@@ -20,6 +21,25 @@ export class LinkService {
       LinkService.instance = new LinkService();
     }
     return LinkService.instance;
+  }
+
+  // 设置自定义基础URL（用于生产环境部署）
+  public setBaseUrl(baseUrl: string): void {
+    console.log('设置自定义基础URL:', baseUrl);
+    this.customBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    
+    // 重新生成所有项目的链接
+    this.regenerateAllProjectLinks();
+  }
+
+  // 重新生成所有项目的链接
+  private regenerateAllProjectLinks(): void {
+    console.log('重新生成所有项目的链接...');
+    const projectIds = Array.from(this.projectLinks.keys());
+    
+    projectIds.forEach(projectId => {
+      this.regenerateProjectLinks(projectId);
+    });
   }
 
   private initialize() {
@@ -74,6 +94,11 @@ export class LinkService {
         console.error('Error loading project current index:', error);
       }
     }
+
+    // 检查和修复链接格式
+    setTimeout(() => {
+      this.validateAndFixAllLinks();
+    }, 1000);
   }
 
   private saveToStorage() {
@@ -109,8 +134,10 @@ export class LinkService {
       const projectKey = this.generateComplexString(32); // 项目特定的密钥
       const sequenceId = i.toString().padStart(3, '0'); // 序列ID，确保顺序
       
-      // 生成固定长度的复杂链接，包含项目信息和序列ID
-      const fullLink = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}${window.location.pathname.replace(/\/merchant\/?$/, '')}/entry/${shortCode}?seq=${sequenceId}&proj=${projectKey}&data=${complexPart}`;
+      // 智能获取基础URL，适配不同部署环境
+      const baseUrl = this.getBaseUrl();
+      // 对于HashRouter，需要包含#/前缀
+      const fullLink = `${baseUrl}/#/entry/${shortCode}?seq=${sequenceId}&proj=${projectKey}&data=${complexPart}`;
       
       this.complexLinks.set(shortCode, fullLink);
       shortCodes.push(shortCode);
@@ -125,16 +152,53 @@ export class LinkService {
     return links;
   }
 
+  // 智能获取基础URL，适配不同部署环境
+  private getBaseUrl(): string {
+    // 最高优先级：手动设置的自定义URL
+    if (this.customBaseUrl) {
+      console.log('使用自定义基础URL:', this.customBaseUrl);
+      return this.customBaseUrl;
+    }
+    
+    // 优先使用环境变量中的基础URL（生产环境）
+    // 在 Vite 中，环境变量通过 import.meta.env 访问
+    if (import.meta.env.REACT_APP_BASE_URL) {
+      console.log('使用环境变量中的基础URL:', import.meta.env.REACT_APP_BASE_URL);
+      return import.meta.env.REACT_APP_BASE_URL;
+    }
+    
+    // 检查是否在浏览器环境中
+    if (typeof window !== 'undefined' && window.location) {
+      const { protocol, hostname, port } = window.location;
+      
+      // 处理不同的部署场景
+      let baseUrl = `${protocol}//${hostname}`;
+      
+      // 只在非标准端口时添加端口号
+      if (port && 
+          !((protocol === 'http:' && port === '80') || 
+            (protocol === 'https:' && port === '443'))) {
+        baseUrl += `:${port}`;
+      }
+      
+      console.log('从window.location生成基础URL:', baseUrl);
+      return baseUrl;
+    }
+    
+    // 后备方案（服务端渲染或其他环境）
+    console.log('使用后备基础URL: http://localhost:3001');
+    return 'http://localhost:3001';
+  }
+
   // 获取项目的下一个可用链接（循环使用）
   getNextLinkForProject(projectId: string): string {
     let shortCodes = this.projectLinks.get(projectId);
     
     // 如果项目还没有生成链接，生成20个
     if (!shortCodes || shortCodes.length === 0) {
-      shortCodes = this.generateLinksForProject(projectId).map(link => {
-        const match = link.match(/\/entry\/(\w+)/);
-        return match ? match[1] : '';
-      }).filter(Boolean);
+      console.log(`项目 ${projectId} 还没有生成链接，正在生成...`);
+      this.generateLinksForProject(projectId);
+      shortCodes = this.projectLinks.get(projectId) || [];
     }
 
     // 获取项目当前索引
@@ -176,7 +240,9 @@ export class LinkService {
       this.saveToStorage();
     }
 
-    return this.complexLinks.get(selectedShortCode) || '';
+    const fullLink = this.complexLinks.get(selectedShortCode) || '';
+    console.log(`为项目 ${projectId} 生成链接:`, fullLink);
+    return fullLink;
   }
 
   // 获取项目的所有链接
@@ -187,11 +253,19 @@ export class LinkService {
 
   // 根据shortCode获取对应的项目ID
   getProjectIdByShortCode(shortCode: string): string | null {
+    console.log('=== linkService.getProjectIdByShortCode ===');
+    console.log('shortCode:', shortCode);
+    console.log('projectLinks:', Object.fromEntries(this.projectLinks));
+    
     for (const [projectId, shortCodes] of this.projectLinks.entries()) {
+      console.log('检查项目:', projectId, 'shortCodes:', shortCodes);
       if (shortCodes.includes(shortCode)) {
+        console.log('找到匹配的项目ID:', projectId);
         return projectId;
       }
     }
+    
+    console.log('未找到匹配的项目ID');
     return null;
   }
 
@@ -270,6 +344,54 @@ export class LinkService {
     }
 
     this.saveToStorage();
+  }
+
+  // 重新生成项目的所有链接（修复格式错误的链接）
+  regenerateProjectLinks(projectId: string): string[] {
+    console.log(`重新生成项目 ${projectId} 的链接...`);
+    
+    // 清除旧链接
+    const oldShortCodes = this.projectLinks.get(projectId) || [];
+    oldShortCodes.forEach(shortCode => {
+      this.complexLinks.delete(shortCode);
+      this.linkUsage.delete(shortCode);
+      this.linkActive.delete(shortCode);
+    });
+    
+    // 清除项目映射
+    this.projectLinks.delete(projectId);
+    this.projectCurrentIndex.delete(projectId);
+    
+    // 生成新链接
+    const newLinks = this.generateLinksForProject(projectId);
+    console.log(`为项目 ${projectId} 重新生成了 ${newLinks.length} 个链接`);
+    
+    return newLinks;
+  }
+
+  // 检查并修复所有项目的链接格式
+  validateAndFixAllLinks(): void {
+    console.log('开始检查和修复所有项目的链接格式...');
+    
+    for (const [projectId, shortCodes] of this.projectLinks.entries()) {
+      let needsRegeneration = false;
+      
+      // 检查是否有格式错误的链接
+      for (const shortCode of shortCodes) {
+        const link = this.complexLinks.get(shortCode);
+        if (!link || !link.startsWith('http')) {
+          console.log(`发现格式错误的链接，项目: ${projectId}, shortCode: ${shortCode}, link: ${link}`);
+          needsRegeneration = true;
+          break;
+        }
+      }
+      
+      if (needsRegeneration) {
+        this.regenerateProjectLinks(projectId);
+      }
+    }
+    
+    console.log('链接格式检查和修复完成');
   }
 }
 

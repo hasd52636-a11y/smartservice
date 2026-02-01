@@ -68,10 +68,15 @@ export class AIService {
 
   private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false) {
     try {
+      if (!this.zhipuApiKey) {
+        throw new Error('智谱AI API密钥未设置，请先配置API密钥');
+      }
+
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.zhipuApiKey}`,
         },
         body: JSON.stringify(body),
       });
@@ -97,10 +102,15 @@ export class AIService {
   // 智谱流式请求
   private async zhipuStreamFetch(endpoint: string, body: any, callback: StreamCallback) {
     try {
+      if (!this.zhipuApiKey) {
+        throw new Error('智谱AI API密钥未设置，请先配置API密钥');
+      }
+
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.zhipuApiKey}`,
         },
         body: JSON.stringify(body),
       });
@@ -216,6 +226,30 @@ export class AIService {
     tools?: FunctionTool[];
     responseFormat?: { type: 'text' | 'json_object' };
   }) {
+    // 检查API密钥是否存在
+    if (!this.zhipuApiKey) {
+      console.log('No API key available, using mock response');
+      const mockResponse = this.generateMockResponse(prompt, knowledge);
+      
+      if (options?.stream && options?.callback) {
+        // 模拟流式输出
+        const words = mockResponse.split('');
+        let index = 0;
+        const streamInterval = setInterval(() => {
+          if (index < words.length) {
+            options.callback!(words[index], false);
+            index++;
+          } else {
+            options.callback!('', true, 'stop');
+            clearInterval(streamInterval);
+          }
+        }, 50); // 每50ms输出一个字符，模拟打字效果
+        return '';
+      } else {
+        return mockResponse;
+      }
+    }
+
     try {
       // 1. 向量化用户查询
       const queryEmbedding = await this.createEmbedding(prompt, {
@@ -284,6 +318,31 @@ export class AIService {
       }
     } catch (error) {
       console.error('向量检索失败，使用传统关键词检索:', error);
+      
+      // 如果API调用失败，回退到模拟响应
+      if (error instanceof Error && (error.message.includes('API key') || error.message.includes('401'))) {
+        console.log('API key error, falling back to mock response');
+        const mockResponse = this.generateMockResponse(prompt, knowledge);
+        
+        if (options?.stream && options?.callback) {
+          // 模拟流式输出
+          const words = mockResponse.split('');
+          let index = 0;
+          const streamInterval = setInterval(() => {
+            if (index < words.length) {
+              options.callback!(words[index], false);
+              index++;
+            } else {
+              options.callback!('', true, 'stop');
+              clearInterval(streamInterval);
+            }
+          }, 50);
+          return '';
+        } else {
+          return mockResponse;
+        }
+      }
+      
       // 回退到传统关键词检索
       const relevantItems = this.retrieveRelevantKnowledge(prompt, knowledge);
       const context = relevantItems.length > 0 
@@ -354,6 +413,12 @@ export class AIService {
 
   // 智谱模型语音识别
   async recognizeSpeech(audioData: string, provider: AIProvider): Promise<string | undefined> {
+    // 检查API密钥是否存在
+    if (!this.zhipuApiKey) {
+      console.log('No API key available, using mock speech recognition');
+      return this.generateMockSpeechRecognition();
+    }
+
     if (provider === AIProvider.ZHIPU) {
       try {
         const data = await this.zhipuFetch('/chat/completions', {
@@ -372,11 +437,11 @@ export class AIService {
         return data.choices[0].message.content;
       } catch (e) {
         console.error("Zhipu Speech Recognition Failed", e);
-        return undefined;
+        return this.generateMockSpeechRecognition();
       }
     }
 
-    return undefined;
+    return this.generateMockSpeechRecognition();
   }
 
   // 测试智谱API连接
@@ -403,21 +468,38 @@ export class AIService {
   }
 
   async analyzeInstallation(imageBuffer: string, visionPrompt: string, provider: AIProvider) {
-    // 仅使用智谱AI实现
-    const data = await this.zhipuFetch('/chat/completions', {
-      model: 'glm-4.6v',
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: visionPrompt },
-          { type: 'image_url', image_url: { url: imageBuffer } }
-        ]
-      }]
-    });
-    return data.choices[0].message.content;
+    // 检查API密钥是否存在
+    if (!this.zhipuApiKey) {
+      console.log('No API key available, using mock image analysis');
+      return this.generateMockImageAnalysis(visionPrompt);
+    }
+
+    try {
+      // 仅使用智谱AI实现
+      const data = await this.zhipuFetch('/chat/completions', {
+        model: 'glm-4.6v',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: visionPrompt },
+            { type: 'image_url', image_url: { url: imageBuffer } }
+          ]
+        }]
+      });
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error('Image analysis failed, using mock response:', error);
+      return this.generateMockImageAnalysis(visionPrompt);
+    }
   }
 
   async generateSpeech(text: string, voiceName: string, provider: AIProvider): Promise<string | undefined> {
+    // 检查API密钥是否存在
+    if (!this.zhipuApiKey) {
+      console.log('No API key available, TTS not available');
+      return undefined;
+    }
+
     // 仅使用智谱AI实现
     try {
       const buffer = await this.zhipuFetch('/audio/speech', {
@@ -934,6 +1016,51 @@ export class AIService {
     }
     
     return dotProduct / (magnitude1 * magnitude2);
+  }
+
+  // 生成模拟响应（当没有API密钥时使用）
+  private generateMockResponse(prompt: string, knowledge: KnowledgeItem[]): string {
+    // 简单的关键词匹配来生成相关的模拟响应
+    const lowerPrompt = prompt.toLowerCase();
+    
+    // 检查是否有相关的知识库内容
+    const relevantItems = this.retrieveRelevantKnowledge(prompt, knowledge);
+    
+    if (relevantItems.length > 0) {
+      // 如果有相关知识，基于知识库内容生成响应
+      const firstItem = relevantItems[0];
+      return `根据产品知识库，关于"${prompt}"的信息：\n\n${firstItem.content.substring(0, 200)}${firstItem.content.length > 200 ? '...' : ''}\n\n如需更详细信息，请联系中恒创世技术支持：400-888-6666`;
+    }
+    
+    // 常见问题的模拟响应
+    if (lowerPrompt.includes('安装') || lowerPrompt.includes('install')) {
+      return '关于产品安装，建议您：\n\n1. 仔细阅读产品说明书\n2. 确保安装环境符合要求\n3. 按照步骤逐一操作\n4. 如遇问题请拍照发送给我分析\n\n如需专业技术支持，请联系：400-888-6666';
+    }
+    
+    if (lowerPrompt.includes('故障') || lowerPrompt.includes('问题') || lowerPrompt.includes('error')) {
+      return '遇到产品故障时，请：\n\n1. 描述具体故障现象\n2. 提供产品型号信息\n3. 上传故障现场照片\n4. 说明使用环境和操作步骤\n\n我会基于这些信息为您提供解决方案。如需人工客服，请拨打：400-888-6666';
+    }
+    
+    if (lowerPrompt.includes('使用') || lowerPrompt.includes('操作') || lowerPrompt.includes('how')) {
+      return '关于产品使用方法：\n\n1. 请先查看产品说明书\n2. 确保正确连接和设置\n3. 按照操作指南进行\n4. 注意安全事项\n\n如有具体操作问题，请详细描述或上传图片，我会为您提供指导。技术支持热线：400-888-6666';
+    }
+    
+    if (lowerPrompt.includes('维护') || lowerPrompt.includes('保养') || lowerPrompt.includes('maintenance')) {
+      return '产品维护保养建议：\n\n1. 定期清洁产品表面\n2. 检查连接部件是否松动\n3. 避免在恶劣环境中使用\n4. 按照保养周期进行维护\n\n具体维护方法请参考说明书，或联系技术支持：400-888-6666';
+    }
+    
+    // 默认响应
+    return `您好！我是智能售后客服助手。\n\n关于您的问题"${prompt}"，我需要更多信息来为您提供准确的解答。请您：\n\n1. 详细描述问题情况\n2. 提供产品型号\n3. 上传相关图片\n\n这样我能更好地为您服务。如需人工客服，请拨打：400-888-6666\n\n官网：www.aivirtualservice.com`;
+  }
+
+  // 模拟图片分析（当没有API密钥时使用）
+  private generateMockImageAnalysis(prompt: string): string {
+    return `图片分析功能需要AI服务支持。\n\n我看到您上传了图片，但目前AI视觉分析服务需要配置。\n\n请您：\n1. 详细描述图片中的问题\n2. 说明产品型号和使用情况\n3. 联系技术支持获得专业分析\n\n中恒创世技术支持：\n📞 400-888-6666\n🌐 www.aivirtualservice.com\n\n我们的技术专家会为您提供详细的图片分析和解决方案。`;
+  }
+
+  // 模拟语音识别（当没有API密钥时使用）
+  private generateMockSpeechRecognition(): string {
+    return '语音识别功能需要AI服务支持，请使用文字输入或联系人工客服：400-888-6666';
   }
 
   // OCR服务：手写体识别

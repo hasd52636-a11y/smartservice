@@ -20,7 +20,8 @@ import {
   Sparkles,
   Video,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { ProductProject, ProjectStatus, ProjectConfig, AIProvider } from './types';
 import { projectService } from './services/projectService';
@@ -34,6 +35,7 @@ import VideoChat from './components/VideoChat';
 import Settings from './components/Settings';
 import KnowledgeBase from './components/KnowledgeBase';
 import SmartSearch from './components/SmartSearch';
+import Diagnostics from './components/Diagnostics';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // 链接入口处理组件 - 用于处理复杂链接，直接渲染用户界面而不重定向
@@ -47,6 +49,7 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
     const handleLinkEntry = async () => {
       console.log('=== 扫码链接处理开始 ===');
       console.log('shortCode:', shortCode);
+      console.log('当前URL:', window.location.href);
       
       if (!shortCode) {
         console.log('shortCode为空，显示错误');
@@ -58,6 +61,11 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
       try {
         setLoading(true);
         setError('');
+        
+        // 检查linkService的状态
+        console.log('linkService状态检查:');
+        console.log('开始查找shortCode对应的项目ID');
+        // 注意：complexLinks和projectLinks是私有属性，无法直接访问
         
         // 根据shortCode获取对应的项目ID
         console.log('查找shortCode对应的项目ID...');
@@ -145,6 +153,7 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
 
   // 项目验证成功，直接渲染用户界面
   if (projectId) {
+    console.log('项目验证成功，渲染UserPreview组件，projectId:', projectId);
     return <UserPreview projects={projects} projectId={projectId} />;
   }
 
@@ -263,6 +272,7 @@ const Sidebar = ({ projects }: { projects: ProductProject[] }) => {
         <SidebarLink to="/admin/projects" icon={<Package size={20} />} labelEn="Products" labelZh="产品管理" />
         <SidebarLink to="/admin/analytics" icon={<BarChart3 size={20} />} labelEn="Analytics" labelZh="数据分析" />
         <SidebarLink to="/admin/settings" icon={<SettingsIcon size={20} />} labelEn="API Settings" labelZh="API设置" />
+        <SidebarLink to="/admin/diagnostics" icon={<CheckCircle2 size={20} />} labelEn="Diagnostics" labelZh="系统诊断" />
         {/* 商家后台专有功能 */}
         <div className="px-5 py-2 mt-4">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">内容管理</span>
@@ -319,6 +329,34 @@ const App: React.FC = () => {
     };
 
     loadProjects();
+  }, []);
+
+  // 初始化链接服务的域名设置
+  useEffect(() => {
+    const initializeLinkService = () => {
+      // 检查当前域名，如果是生产环境则设置正确的基础URL
+      const currentHost = window.location.hostname;
+      
+      if (currentHost === 'sora.wboke.com') {
+        console.log('检测到生产环境，设置基础URL为: https://sora.wboke.com');
+        linkService.setBaseUrl('https://sora.wboke.com');
+      } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+        console.log('检测到本地开发环境');
+        // 本地环境使用默认设置
+      } else {
+        console.log('检测到其他环境，当前域名:', currentHost);
+        // 其他环境自动使用当前域名
+        const protocol = window.location.protocol;
+        const port = window.location.port;
+        let baseUrl = `${protocol}//${currentHost}`;
+        if (port && port !== '80' && port !== '443') {
+          baseUrl += `:${port}`;
+        }
+        linkService.setBaseUrl(baseUrl);
+      }
+    };
+
+    initializeLinkService();
   }, []);
 
   const addProject = async (name: string, description: string) => {
@@ -438,6 +476,7 @@ const App: React.FC = () => {
                     <Route path="/projects/:id" element={<ProjectDetail projects={projects} onUpdate={updateProject} />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/diagnostics" element={<Diagnostics />} />
                     <Route path="/knowledge" element={<KnowledgeBase />} />
                     <Route path="/search" element={<SmartSearch />} />
                   </Routes>
@@ -488,6 +527,7 @@ const App: React.FC = () => {
                     <Route path="/projects/:id" element={<ProjectDetail projects={projects} onUpdate={updateProject} />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/diagnostics" element={<Diagnostics />} />
                     {/* 商家后台专有功能 */}
                     <Route path="/knowledge" element={<KnowledgeBase />} />
                     <Route path="/search" element={<SmartSearch />} />
