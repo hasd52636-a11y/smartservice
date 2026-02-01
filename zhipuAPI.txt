@@ -1,0 +1,2937 @@
+生成视频(异步)
+
+Copy page
+
+通过调用 视频模型 能力生成视频内容。支持多种视频生成方式，包括文本转视频、图像转视频等。注意此为异步接口，通过 查询异步结果 获取生成视频结果。
+
+POST
+/
+paas
+/
+v4
+/
+videos
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+CogVideoX-3
+CogVideoX
+Vidu: Text to Video
+Vidu: Image to Video
+Vidu: First & Last Frame to Video
+Vidu: Ref to Video
+​
+model
+enum<string>required
+要调用的模型编码。
+
+Available options: cogvideox-3 
+​
+prompt
+string
+视频的文本描述，字符长度不能超过512个字符, image_url和prompt二选一。
+
+Example:
+"A cat is playing with a ball."
+
+​
+quality
+enum<string>
+输出模式，默认为 speed。 quality：质量优先，生成质量高。 speed：速度优先，生成时间更快，质量相对稍低。
+
+Available options: speed, quality 
+Example:
+"speed"
+
+​
+with_audio
+boolean
+是否生成 AI 音效。默认值：False （不生成音效）。
+
+Example:
+false
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+image_url
+
+string<uri>
+提供基于其生成内容的图像，如果传入此参数，系统将以该图像为基础进行操作。支持通过URL或Base64编码传入图片。图片要求如下：图片支持.png、.jpeg、.jpg 格式、图片大小：不超过5M, image_url和prompt二选一。
+首尾帧：支持输入两张图，上传的第一张图片视作首帧图，第二张图片视作尾帧图，模型将以此参数中传入的图片来生成视频
+首尾帧模式只支持speed 模式
+
+Example:
+"https://example.com/image.png"
+
+​
+size
+enum<string>
+默认值：若不指定，默认生成视频的短边为 1080，长边根据原图片比例确认。最高支持 4K 分辨率。
+
+Available options: 1280x720, 720x1280, 1024x1024, 1920x1080, 1080x1920, 2048x1080, 3840x2160 
+Example:
+"1920x1080"
+
+​
+fps
+enum<integer>
+视频帧率（FPS），可选值为 30 或 60。默认值：30。
+
+Available options: 30, 60 
+Example:
+30
+
+​
+duration
+enum<integer>
+视频持续时长，默认5秒，支持5、10
+
+Available options: 5, 10 
+Example:
+5
+
+​
+request_id
+string
+由客户端提供，必须唯一；用于区分每个请求的唯一标识符。如果客户端未提供，平台将默认生成一个。
+
+​
+user_id
+string
+终端用户的唯一 ID，协助平台干预终端用户违规、生成非法或不当信息或其他滥用行为。ID 长度要求：最少 6 个字符，最多 128 个字符。
+
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+model
+string
+此次调用使用的名称。
+
+​
+id
+string
+生成的任务ID，调用请求结果接口时使用此ID。
+
+​
+request_id
+string
+用户在客户端请求期间提交的任务编号或平台生成的任务编号。
+
+​
+task_status
+string
+处理状态，PROCESSING (处理中)、SUCCESS (成功)、FAIL (失败)。结果需要通过查询获取。
+
+文生图示例：
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/videos/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogvideox-3",
+  "prompt": "A cat is playing with a ball.",
+  "quality": "quality",
+  "with_audio": true,
+  "size": "1920x1080",
+  "fps": 30
+}
+'
+
+
+200
+{
+  "model": "<string>",
+  "id": "<string>",
+  "request_id": "<string>",
+  "task_status": "<string>"
+}
+
+
+
+******
+
+对话补全
+
+Copy page
+
+和 指定模型 对话，模型根据请求给出响应。支持多种模型，支持多模态（文本、图片、音频、视频、文件），流式和非流式输出，可配置采样，温度，最大令牌数，工具调用等。
+
+POST
+/
+paas
+/
+v4
+/
+chat
+/
+completions
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+文本模型
+视觉模型
+音频模型
+角色模型
+普通对话模型请求，支持纯文本对话和工具调用
+
+​
+model
+enum<string>default:glm-4.7required
+调用的普通对话模型代码。GLM-4.7 是最新的旗舰模型系列。GLM-4.7 GLM-4.6 系列提供了复杂推理、超长上下文、极快推理速度等多款模型。
+
+Available options: glm-4.7, glm-4.6, glm-4.5, glm-4.5-air, glm-4.5-x, glm-4.5-airx, glm-4.5-flash, glm-4-plus, glm-4-air-250414, glm-4-airx, glm-4-flashx, glm-4-flashx-250414 
+Example:
+"glm-4.7"
+
+​
+messages
+(用户消息 · object | 系统消息 · object | 助手消息 · object | 工具消息 · object)[]required
+对话消息列表，包含当前对话的完整上下文信息。每条消息都有特定的角色和内容，模型会根据这些消息生成回复。消息按时间顺序排列，支持四种角色：system（系统消息，用于设定AI的行为和角色）、user（用户消息，来自用户的输入）、assistant（助手消息，来自AI的回复）、tool（工具消息，工具调用的结果）。普通对话模型主要支持纯文本内容。注意不能只包含系统消息或助手消息。
+
+Minimum array length: 1
+用户消息
+系统消息
+助手消息
+工具消息
+Hide child attributes
+
+​
+messages.role
+enum<string>default:userrequired
+消息作者的角色
+
+Available options: user 
+​
+messages.content
+stringrequired
+文本消息内容
+
+Example:
+"What opportunities and challenges will the Chinese large model industry face in 2025?"
+
+​
+stream
+booleandefault:false
+是否启用流式输出模式。默认值为 false。当设置为 false 时，模型会在生成完整响应后一次性返回所有内容，适合短文本生成和批处理场景。当设置为 true 时，模型会通过Server-Sent Events (SSE)流式返回生成的内容，用户可以实时看到文本生成过程，适合聊天对话和长文本生成场景，能提供更好的用户体验。流式输出结束时会返回 data: [DONE] 消息。
+
+Example:
+false
+
+​
+thinking
+object
+仅 GLM-4.5 及以上模型支持此参数配置. 控制大模型是否开启思维链。
+
+Hide child attributes
+
+​
+thinking.type
+enum<string>default:enabled
+是否开启思维链(当开启后 GLM-4.7 GLM-4.5V 为强制思考，GLM-4.6 GLM-4.6V GLM-4.5 为模型自动判断是否思考), 默认: enabled.
+
+Available options: enabled, disabled 
+​
+thinking.clear_thinking
+booleandefault:true
+默认为 True。用于控制是否清除历史对话轮次（previous turns）中的 reasoning_content。详见 思考模式
+
+true（默认）：在本次请求中，系统会忽略/移除历史 turns 的 reasoning_content，仅使用非推理内容（如用户/助手可见文本、工具调用与结果等）作为上下文输入。适用于普通对话与轻量任务，可降低上下文长度与成本
+false：保留历史 turns 的 reasoning_content 并随上下文一同提供给模型。若你希望启用 Preserved Thinking，必须在 messages 中完整、未修改、按原顺序透传历史 reasoning_content；缺失、裁剪、改写或重排会导致效果下降或无法生效。
+注意：该参数只影响跨 turn 的历史 thinking blocks；不改变模型在当前 turn 内是否产生/输出 thinking
+Example:
+true
+
+​
+do_sample
+booleandefault:true
+是否启用采样策略来生成文本。默认值为 true。当设置为 true 时，模型会使用 temperature、top_p 等参数进行随机采样，生成更多样化的输出；当设置为 false 时，模型总是选择概率最高的词汇，生成更确定性的输出，此时 temperature 和 top_p 参数将被忽略。对于需要一致性和可重复性的任务（如代码生成、翻译），建议设置为 false。
+
+Example:
+true
+
+​
+temperature
+number<float>default:1
+采样温度，控制输出的随机性和创造性，取值范围为 [0.0, 1.0]，限两位小数。对于GLM-4.7 GLM-4.6系列默认值为 1.0，GLM-4.5系列默认值为 0.6，GLM-4系列默认值为 0.75。较高的值（如0.8）会使输出更随机、更具创造性，适合创意写作和头脑风暴；较低的值（如0.2）会使输出更稳定、更确定，适合事实性问答和代码生成。建议根据应用场景调整 top_p 或 temperature 参数，但不要同时调整两个参数。
+
+Required range: 0 <= x <= 1
+Example:
+1
+
+​
+top_p
+number<float>default:0.95
+核采样（nucleus sampling）参数，是temperature采样的替代方法，取值范围为 [0.01, 1.0]，限两位小数。对于GLM-4.7 GLM-4.6 GLM-4.5系列默认值为 0.95，GLM-4系列默认值为 0.9。模型只考虑累积概率达到top_p的候选词汇。例如：0.1表示只考虑前10%概率的词汇，0.9表示考虑前90%概率的词汇。较小的值会产生更集中、更一致的输出；较大的值会增加输出的多样性。建议根据应用场景调整 top_p 或 temperature 参数，但不建议同时调整两个参数。
+
+Required range: 0.01 <= x <= 1
+Example:
+0.95
+
+​
+max_tokens
+integer
+模型输出的最大令牌token数量限制。GLM-4.7 GLM-4.6最大支持128K输出长度，GLM-4.5最大支持96K输出长度，建议设置不小于1024。令牌是文本的基本单位，通常1个令牌约等于0.75个英文单词或1.5个中文字符。设置合适的max_tokens可以控制响应长度和成本，避免过长的输出。如果模型在达到max_tokens限制前完成回答，会自然结束；如果达到限制，输出可能被截断。
+默认值和最大值等更多详见 max_tokens 文档
+
+Required range: 1 <= x <= 131072
+Example:
+1024
+
+​
+tool_stream
+booleandefault:false
+是否开启流式响应Function Calls，仅限GLM-4.7 GLM-4.6支持此参数，默认值false。参考 工具流式输出
+
+Example:
+false
+
+​
+tools
+Function Call · object
+Function Call · object[]
+Retrieval · object[]
+Web Search · object[]
+MCP · object[]
+Hide child attributes
+
+​
+tools.type
+enum<string>default:functionrequired
+Available options: function 
+​
+tools.function
+objectrequired
+Hide child attributes
+
+​
+tools.function.name
+stringrequired
+要调用的函数名称。必须是 a-z、A-Z、0-9，或包含下划线和破折号，最大长度为 64。
+
+Required string length: 1 - 64
+​
+tools.function.description
+stringrequired
+函数功能的描述，供模型选择何时以及如何调用函数。
+
+​
+tools.function.parameters
+objectrequired
+使用 JSON Schema 定义的参数。必须传递 JSON Schema 对象以准确定义接受的参数。如果调用函数时不需要参数，则省略。
+
+​
+tool_choice
+enum<string>
+控制模型如何选择工具。
+
+Available options: auto 
+​
+stop
+string[]
+停止词列表，当模型生成的文本中遇到这些指定的字符串时会立即停止生成。目前仅支持单个停止词，格式为["stop_word1"]。停止词不会包含在返回的文本中。这对于控制输出格式、防止模型生成不需要的内容非常有用，例如在对话场景中可以设置["Human:"]来防止模型模拟用户发言。
+
+Maximum array length: 1
+​
+response_format
+object
+指定模型的响应输出格式，默认为text，仅文本模型支持此字段。支持两种格式：{ "type": "text" } 表示普通文本输出模式，模型返回自然语言文本；{ "type": "json_object" } 表示JSON输出模式，模型会返回有效的JSON格式数据，适用于结构化数据提取、API响应生成等场景。使用JSON模式时，建议在提示词中明确说明需要JSON格式输出。
+
+Hide child attributes
+
+​
+response_format.type
+enum<string>default:textrequired
+输出格式类型：text表示普通文本输出，json_object表示JSON格式输出
+
+Available options: text, json_object 
+​
+request_id
+string
+请求唯一标识符。由用户端传递，建议使用UUID格式确保唯一性，若未提供平台将自动生成。
+
+​
+user_id
+string
+终端用户的唯一标识符。ID长度要求：最少6个字符，最多128个字符，建议使用不包含敏感信息的唯一标识。
+
+Required string length: 6 - 128
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+id
+string
+任务 ID
+
+​
+request_id
+string
+请求 ID
+
+​
+created
+integer
+请求创建时间，Unix 时间戳（秒）
+
+​
+model
+string
+模型名称
+
+​
+choices
+object[]
+模型响应列表
+
+Hide child attributes
+
+​
+choices.index
+integer
+结果索引
+
+​
+choices.message
+object
+Hide child attributes
+
+​
+choices.message.role
+string
+当前对话角色，默认为 assistant
+
+Example:
+"assistant"
+
+​
+choices.message.content
+
+Option 1 · string
+当前对话文本内容。如果调用函数则为 null，否则返回推理结果。
+对于GLM-4.5V系列模型，返回内容可能包含思考过程标签 <think> </think>，文本边界标签 <|begin_of_box|> <|end_of_box|>。
+
+​
+choices.message.reasoning_content
+string
+思维链内容，仅在使用 glm-4.5 系列, glm-4.1v-thinking 系列模型时返回。
+
+​
+choices.message.audio
+object
+当使用 glm-4-voice 模型时返回的音频内容
+
+Hide child attributes
+
+​
+choices.message.audio.id
+string
+当前对话的音频内容id，可用于多轮对话输入
+
+​
+choices.message.audio.data
+string
+当前对话的音频内容base64编码
+
+​
+choices.message.audio.expires_at
+string
+当前对话的音频内容过期时间
+
+​
+choices.message.tool_calls
+object[]
+生成的应该被调用的函数名称和参数。
+
+Hide child attributes
+
+​
+choices.message.tool_calls.function
+object
+包含生成的函数名称和 JSON 格式参数。
+
+Hide child attributes
+
+​
+choices.message.tool_calls.function.name
+stringrequired
+生成的函数名称。
+
+​
+choices.message.tool_calls.function.arguments
+stringrequired
+生成的函数调用参数的 JSON 格式字符串。调用函数前请验证参数。
+
+​
+choices.message.tool_calls.mcp
+object
+MCP 工具调用参数
+
+Hide child attributes
+
+​
+choices.message.tool_calls.mcp.id
+string
+mcp 工具调用唯一标识
+
+​
+choices.message.tool_calls.mcp.type
+enum<string>
+工具调用类型, 例如 mcp_list_tools, mcp_call
+
+Available options: mcp_list_tools, mcp_call 
+​
+choices.message.tool_calls.mcp.server_label
+string
+MCP服务器标签
+
+​
+choices.message.tool_calls.mcp.error
+string
+错误信息
+
+​
+choices.message.tool_calls.mcp.tools
+object[]
+type = mcp_list_tools 时的工具列表
+
+Hide child attributes
+
+​
+choices.message.tool_calls.mcp.tools.name
+string
+工具名称
+
+​
+choices.message.tool_calls.mcp.tools.description
+string
+工具描述
+
+​
+choices.message.tool_calls.mcp.tools.annotations
+object
+工具注解
+
+​
+choices.message.tool_calls.mcp.tools.input_schema
+object
+工具输入参数规范
+
+Hide child attributes
+
+​
+choices.message.tool_calls.mcp.tools.input_schema.type
+enum<string>default:object
+固定值 'object'
+
+Available options: object 
+​
+choices.message.tool_calls.mcp.tools.input_schema.properties
+object
+参数属性定义
+
+​
+choices.message.tool_calls.mcp.tools.input_schema.required
+string[]
+必填属性列表
+
+​
+choices.message.tool_calls.mcp.tools.input_schema.additionalProperties
+boolean
+是否允许额外参数
+
+​
+choices.message.tool_calls.mcp.arguments
+string
+工具调用参数，参数为 json 字符串
+
+​
+choices.message.tool_calls.mcp.name
+string
+工具名称
+
+​
+choices.message.tool_calls.mcp.output
+object
+工具返回的结果输出
+
+​
+choices.message.tool_calls.id
+string
+命中函数的唯一标识符。
+
+​
+choices.message.tool_calls.type
+string
+调用的工具类型，目前仅支持 'function', 'mcp'。
+
+​
+choices.finish_reason
+string
+推理终止原因。'stop’表示自然结束或触发stop词，'tool_calls’表示模型命中函数，'length’表示达到token长度限制，'sensitive’表示内容被安全审核接口拦截（用户应判断并决定是否撤回公开内容），'network_error’表示模型推理异常。
+
+​
+usage
+object
+调用结束时返回的 Token 使用统计。
+
+Hide child attributes
+
+​
+usage.prompt_tokens
+number
+用户输入的 Token 数量。
+
+​
+usage.completion_tokens
+number
+输出的 Token 数量
+
+​
+usage.prompt_tokens_details
+object
+Hide child attributes
+
+​
+usage.prompt_tokens_details.cached_tokens
+number
+命中的缓存 Token 数量
+
+​
+usage.total_tokens
+integer
+Token 总数，对于 glm-4-voice 模型，1秒音频=12.5 Tokens，向上取整
+
+​
+video_result
+object[]
+视频生成结果。
+
+Hide child attributes
+
+​
+video_result.url
+string
+视频链接。
+
+​
+video_result.cover_image_url
+string
+视频封面链接。
+
+​
+web_search
+object[]
+返回与网页搜索相关的信息，使用WebSearchToolSchema时返回
+
+Hide child attributes
+
+​
+web_search.icon
+string
+来源网站的图标
+
+​
+web_search.title
+string
+搜索结果的标题
+
+​
+web_search.link
+string
+搜索结果的网页链接
+
+​
+web_search.media
+string
+搜索结果网页的媒体来源名称
+
+​
+web_search.publish_date
+string
+网站发布时间
+
+​
+web_search.content
+string
+搜索结果网页引用的文本内容
+
+​
+web_search.refer
+string
+角标序号
+
+​
+content_filter
+object[]
+返回内容安全的相关信息
+
+Hide child attributes
+
+​
+content_filter.role
+string
+安全生效环节，包括 role = assistant 模型推理，role = user 用户输入，role = history 历史上下文
+
+​
+content_filter.level
+integer
+严重程度 level 0-3，level 0表示最严重，3表示轻微
+
+
+
+基础调用示例：
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/chat/completions \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "glm-4.7",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个有用的AI助手。"
+    },
+    {
+      "role": "user",
+      "content": "请介绍一下人工智能的发展历程。"
+    }
+  ],
+  "temperature": 1,
+  "stream": false,
+  "thinking": {
+    "type": "enabled",
+    "clear_thinking": true
+  },
+  "do_sample": true,
+  "top_p": 0.95,
+  "tool_stream": false,
+  "response_format": {
+    "type": "text"
+  }
+}
+'
+
+200
+
+{
+  "id": "<string>",
+  "request_id": "<string>",
+  "created": 123,
+  "model": "<string>",
+  "choices": [
+    {
+      "index": 123,
+      "message": {
+        "role": "assistant",
+        "content": "<string>",
+        "reasoning_content": "<string>",
+        "audio": {
+          "id": "<string>",
+          "data": "<string>",
+          "expires_at": "<string>"
+        },
+        "tool_calls": [
+          {
+            "function": {
+              "name": "<string>",
+              "arguments": "<string>"
+            },
+            "mcp": {
+              "id": "<string>",
+              "type": "mcp_list_tools",
+              "server_label": "<string>",
+              "error": "<string>",
+              "tools": [
+                {
+                  "name": "<string>",
+                  "description": "<string>",
+                  "annotations": {},
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [
+                      "<string>"
+                    ],
+                    "additionalProperties": true
+                  }
+                }
+              ],
+              "arguments": "<string>",
+              "name": "<string>",
+              "output": {}
+            },
+            "id": "<string>",
+            "type": "<string>"
+          }
+        ]
+      },
+      "finish_reason": "<string>"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 123,
+    "completion_tokens": 123,
+    "prompt_tokens_details": {
+      "cached_tokens": 123
+    },
+    "total_tokens": 123
+  },
+  "video_result": [
+    {
+      "url": "<string>",
+      "cover_image_url": "<string>"
+    }
+  ],
+  "web_search": [
+    {
+      "icon": "<string>",
+      "title": "<string>",
+      "link": "<string>",
+      "media": "<string>",
+      "publish_date": "<string>",
+      "content": "<string>",
+      "refer": "<string>"
+    }
+  ],
+  "content_filter": [
+    {
+      "role": "<string>",
+      "level": 123
+    }
+  ]
+}
+
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+
+******
+
+对话补全
+
+Copy page
+
+和 指定模型 对话，模型根据请求给出响应。支持多种模型，支持多模态（文本、图片、音频、视频、文件），流式和非流式输出，可配置采样，温度，最大令牌数，工具调用等。
+
+POST
+/
+paas
+/
+v4
+/
+chat
+/
+completions
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+文本模型
+视觉模型
+音频模型
+角色模型
+视觉模型请求，支持多模态内容（文本、图片、视频、文件）
+
+​
+model
+enum<string>default:glm-4.6vrequired
+调用的视觉模型代码。GLM-4.6V 系列支持视觉理解，具备卓越的多模态理解能力和工具调用能力。AutoGLM-Phone 是手机智能助理模型。GLM-4.1v-thinking 系列支持视觉推理思考。
+
+Available options: glm-4.6v, autoglm-phone, glm-4.6v-flash, glm-4.6v-flashx, glm-4.5v, glm-4v-plus-0111, glm-4v-flash, glm-4.1v-thinking-flashx, glm-4.1v-thinking-flash 
+Example:
+"glm-4.6v"
+
+​
+messages
+(用户消息 · object | 系统消息 · object | 助手消息 · object)[]required
+对话消息列表，包含当前对话的完整上下文信息。每条消息都有特定的角色和内容，模型会根据这些消息生成回复。消息按时间顺序排列，支持角色：system（系统消息，用于设定AI的行为和角色）、user（用户消息，来自用户的输入）、assistant（助手消息，来自AI的回复）。视觉模型支持纯文本和多模态内容（文本、图片、视频、文件）。注意不能只包含系统或助手消息。
+
+Minimum array length: 1
+用户消息
+系统消息
+助手消息
+Hide child attributes
+
+​
+messages.role
+enum<string>default:userrequired
+消息作者的角色
+
+Available options: user 
+​
+messages.content
+
+(文本 · object | 图片 · object | 视频 · object | 文件 · object)[]
+required
+多模态消息内容，支持文本、图片、文件、视频（可从上方切换至文本消息）
+
+文本
+图片
+视频
+文件
+Hide child attributes
+
+​
+messages.content.type
+enum<string>default:textrequired
+内容类型为文本
+
+Available options: text 
+​
+messages.content.text
+stringrequired
+文本内容
+
+​
+stream
+booleandefault:false
+是否启用流式输出模式。默认值为 false。当设置为 false 时，模型会在生成完整响应后一次性返回所有内容，适合短文本生成和批处理场景。当设置为 true 时，模型会通过Server-Sent Events (SSE)流式返回生成的内容，用户可以实时看到文本生成过程，适合聊天对话和长文本生成场景，能提供更好的用户体验。流式输出结束时会返回 data: [DONE] 消息。
+
+Example:
+false
+
+​
+thinking
+object
+仅 GLM-4.5 及以上模型支持此参数配置. 控制大模型是否开启思维链。
+
+Hide child attributes
+
+​
+thinking.type
+enum<string>default:enabled
+是否开启思维链(当开启后 GLM-4.7 GLM-4.5V 为强制思考，GLM-4.6 GLM-4.6V GLM-4.5 为模型自动判断是否思考), 默认: enabled.
+
+Available options: enabled, disabled 
+​
+thinking.clear_thinking
+booleandefault:true
+默认为 True。用于控制是否清除历史对话轮次（previous turns）中的 reasoning_content。详见 思考模式
+
+true（默认）：在本次请求中，系统会忽略/移除历史 turns 的 reasoning_content，仅使用非推理内容（如用户/助手可见文本、工具调用与结果等）作为上下文输入。适用于普通对话与轻量任务，可降低上下文长度与成本
+false：保留历史 turns 的 reasoning_content 并随上下文一同提供给模型。若你希望启用 Preserved Thinking，必须在 messages 中完整、未修改、按原顺序透传历史 reasoning_content；缺失、裁剪、改写或重排会导致效果下降或无法生效。
+注意：该参数只影响跨 turn 的历史 thinking blocks；不改变模型在当前 turn 内是否产生/输出 thinking
+Example:
+true
+
+​
+do_sample
+booleandefault:true
+是否启用采样策略来生成文本。默认值为 true。当设置为 true 时，模型会使用 temperature、top_p 等参数进行随机采样，生成更多样化的输出；当设置为 false 时，模型总是选择概率最高的词汇，生成更确定性的输出，此时 temperature 和 top_p 参数将被忽略。对于需要一致性和可重复性的任务（如代码生成、翻译），建议设置为 false。
+
+Example:
+true
+
+​
+temperature
+number<float>default:0.8
+采样温度，控制输出的随机性和创造性，取值范围为 [0.0, 1.0]，限两位小数。对于GLM-4.6V, GLM-4.5V系列默认值为 0.8，AutoGLM-Phone默认值为 0.0，GLM-4.1v系列默认值为 0.8。较高的值（如0.8）会使输出更随机、更具创造性，适合创意写作和头脑风暴；较低的值（如0.2）会使输出更稳定、更确定，适合事实性问答和代码生成。建议根据应用场景调整 top_p 或 temperature 参数，但不要同时调整两个参数。
+
+Required range: 0 <= x <= 1
+Example:
+0.8
+
+​
+top_p
+number<float>default:0.6
+核采样（nucleus sampling）参数，是temperature采样的替代方法，取值范围为 [0.01, 1.0]，限两位小数。对于GLM-4.6V, GLM-4.5V系列默认值为 0.6，AutoGLM-Phone默认值为 0.85，GLM-4.1v系列默认值为 0.6。模型只考虑累积概率达到top_p的候选词汇。例如：0.1表示只考虑前10%概率的词汇，0.9表示考虑前90%概率的词汇。较小的值会产生更集中、更一致的输出；较大的值会增加输出的多样性。建议根据应用场景调整 top_p 或 temperature 参数，但不要同时调整两个参数。
+
+Required range: 0.01 <= x <= 1
+Example:
+0.6
+
+​
+max_tokens
+integer
+模型输出的最大令牌token数量限制。GLM-4.6V最大支持32K输出长度，GLM-4.5V最大支持16K输出长度，AutoGLM-Phone最大支持4K输出长度，GLM-4.1v系列最大支持16K输出长度，建议设置不小于1024。令牌是文本的基本单位，通常1个令牌约等于0.75个英文单词或1.5个中文字符。设置合适的max_tokens可以控制响应长度和成本，避免过长的输出。如果模型在达到max_tokens限制前完成回答，会自然结束；如果达到限制，输出可能被截断。
+默认值和最大值等更多详见 max_tokens 文档
+
+Required range: 1 <= x <= 32768
+Example:
+1024
+
+​
+tools
+Function Call · object[]
+模型可以调用的工具列表。仅限GLM-4.6V和AutoGLM-Phone支持。使用此参数提供模型可以生成 JSON 输入的函数列表或配置其他工具。最多支持 128 个函数。
+
+Hide child attributes
+
+​
+tools.type
+enum<string>default:functionrequired
+Available options: function 
+​
+tools.function
+objectrequired
+Hide child attributes
+
+​
+tools.function.name
+stringrequired
+要调用的函数名称。必须是 a-z、A-Z、0-9，或包含下划线和破折号，最大长度为 64。
+
+Required string length: 1 - 64
+​
+tools.function.description
+stringrequired
+函数功能的描述，供模型选择何时以及如何调用函数。
+
+​
+tools.function.parameters
+objectrequired
+使用 JSON Schema 定义的参数。必须传递 JSON Schema 对象以准确定义接受的参数。如果调用函数时不需要参数，则省略。
+
+​
+tool_choice
+enum<string>
+控制模型如何选择工具。
+
+Available options: auto 
+​
+stop
+string[]
+停止词列表，当模型生成的文本中遇到这些指定的字符串时会立即停止生成。目前仅支持单个停止词，格式为["stop_word1"]。停止词不会包含在返回的文本中。这对于控制输出格式、防止模型生成不需要的内容非常有用，例如在对话场景中可以设置["Human:"]来防止模型模拟用户发言。
+
+Maximum array length: 1
+​
+request_id
+string
+请求唯一标识符。由用户端传递，建议使用UUID格式确保唯一性，若未提供平台将自动生成。
+
+​
+user_id
+string
+终端用户的唯一标识符。ID长度要求：最少6个字符，最多128个字符，建议使用不包含敏感信息的唯一标识。
+
+Required string length: 6 - 128
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+id
+string
+任务 ID
+
+​
+request_id
+string
+请求 ID
+
+​
+created
+integer
+请求创建时间，Unix 时间戳（秒）
+
+​
+model
+string
+模型名称
+
+​
+choices
+object[]
+模型响应列表
+
+Hide child attributes
+
+​
+choices.index
+integer
+结果索引
+
+​
+choices.message
+object
+Hide child attributes
+
+​
+choices.message.role
+string
+当前对话角色，默认为 assistant
+
+Example:
+"assistant"
+
+​
+choices.message.content
+
+Option 1 · string
+当前对话文本内容。如果调用函数则为 null，否则返回推理结果。
+对于GLM-4.5V系列模型，返回内容可能包含思考过程标签 <think> </think>，文本边界标签 <|begin_of_box|> <|end_of_box|>。
+
+​
+choices.message.reasoning_content
+string
+思维链内容，仅在使用 glm-4.5 系列, glm-4.1v-thinking 系列模型时返回。
+
+​
+choices.message.audio
+object
+当使用 glm-4-voice 模型时返回的音频内容
+
+Hide child attributes
+
+​
+choices.message.audio.id
+string
+当前对话的音频内容id，可用于多轮对话输入
+
+​
+choices.message.audio.data
+string
+当前对话的音频内容base64编码
+
+​
+choices.message.audio.expires_at
+string
+当前对话的音频内容过期时间
+
+​
+choices.message.tool_calls
+object[]
+生成的应该被调用的函数名称和参数。
+
+Hide child attributes
+
+​
+choices.message.tool_calls.function
+object
+包含生成的函数名称和 JSON 格式参数。
+
+Hide child attributes
+
+​
+choices.message.tool_calls.function.name
+stringrequired
+生成的函数名称。
+
+​
+choices.message.tool_calls.function.arguments
+stringrequired
+生成的函数调用参数的 JSON 格式字符串。调用函数前请验证参数。
+
+​
+choices.message.tool_calls.mcp
+object
+MCP 工具调用参数
+
+Hide child attributes
+
+​
+choices.message.tool_calls.mcp.id
+string
+mcp 工具调用唯一标识
+
+​
+choices.message.tool_calls.mcp.type
+enum<string>
+工具调用类型, 例如 mcp_list_tools, mcp_call
+
+Available options: mcp_list_tools, mcp_call 
+​
+choices.message.tool_calls.mcp.server_label
+string
+MCP服务器标签
+
+​
+choices.message.tool_calls.mcp.error
+string
+错误信息
+
+​
+choices.message.tool_calls.mcp.tools
+object[]
+type = mcp_list_tools 时的工具列表
+
+Hide child attributes
+
+​
+choices.message.tool_calls.mcp.tools.name
+string
+工具名称
+
+​
+choices.message.tool_calls.mcp.tools.description
+string
+工具描述
+
+​
+choices.message.tool_calls.mcp.tools.annotations
+object
+工具注解
+
+​
+choices.message.tool_calls.mcp.tools.input_schema
+object
+工具输入参数规范
+
+Hide child attributes
+
+​
+choices.message.tool_calls.mcp.tools.input_schema.type
+enum<string>default:object
+固定值 'object'
+
+Available options: object 
+​
+choices.message.tool_calls.mcp.tools.input_schema.properties
+object
+参数属性定义
+
+​
+choices.message.tool_calls.mcp.tools.input_schema.required
+string[]
+必填属性列表
+
+​
+choices.message.tool_calls.mcp.tools.input_schema.additionalProperties
+boolean
+是否允许额外参数
+
+​
+choices.message.tool_calls.mcp.arguments
+string
+工具调用参数，参数为 json 字符串
+
+​
+choices.message.tool_calls.mcp.name
+string
+工具名称
+
+​
+choices.message.tool_calls.mcp.output
+object
+工具返回的结果输出
+
+​
+choices.message.tool_calls.id
+string
+命中函数的唯一标识符。
+
+​
+choices.message.tool_calls.type
+string
+调用的工具类型，目前仅支持 'function', 'mcp'。
+
+​
+choices.finish_reason
+string
+推理终止原因。'stop’表示自然结束或触发stop词，'tool_calls’表示模型命中函数，'length’表示达到token长度限制，'sensitive’表示内容被安全审核接口拦截（用户应判断并决定是否撤回公开内容），'network_error’表示模型推理异常。
+
+​
+usage
+object
+调用结束时返回的 Token 使用统计。
+
+Hide child attributes
+
+​
+usage.prompt_tokens
+number
+用户输入的 Token 数量。
+
+​
+usage.completion_tokens
+number
+输出的 Token 数量
+
+​
+usage.prompt_tokens_details
+object
+Hide child attributes
+
+​
+usage.prompt_tokens_details.cached_tokens
+number
+命中的缓存 Token 数量
+
+​
+usage.total_tokens
+integer
+Token 总数，对于 glm-4-voice 模型，1秒音频=12.5 Tokens，向上取整
+
+​
+video_result
+object[]
+视频生成结果。
+
+Hide child attributes
+
+​
+video_result.url
+string
+视频链接。
+
+​
+video_result.cover_image_url
+string
+视频封面链接。
+
+​
+web_search
+object[]
+返回与网页搜索相关的信息，使用WebSearchToolSchema时返回
+
+Hide child attributes
+
+​
+web_search.icon
+string
+来源网站的图标
+
+​
+web_search.title
+string
+搜索结果的标题
+
+​
+web_search.link
+string
+搜索结果的网页链接
+
+​
+web_search.media
+string
+搜索结果网页的媒体来源名称
+
+​
+web_search.publish_date
+string
+网站发布时间
+
+​
+web_search.content
+string
+搜索结果网页引用的文本内容
+
+​
+web_search.refer
+string
+角标序号
+
+​
+content_filter
+object[]
+返回内容安全的相关信息
+
+Hide child attributes
+
+​
+content_filter.role
+string
+安全生效环节，包括 role = assistant 模型推理，role = user 用户输入，role = history 历史上下文
+
+​
+content_filter.level
+integer
+严重程度 level 0-3，level 0表示最严重，3表示轻微
+
+
+基础调用示例
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/chat/completions \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "glm-4.7",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个有用的AI助手。"
+    },
+    {
+      "role": "user",
+      "content": "请介绍一下人工智能的发展历程。"
+    }
+  ],
+  "temperature": 1,
+  "stream": false,
+  "thinking": {
+    "type": "enabled",
+    "clear_thinking": true
+  },
+  "do_sample": true,
+  "top_p": 0.95,
+  "tool_stream": false,
+  "response_format": {
+    "type": "text"
+  }
+}
+'
+
+200
+{
+  "id": "<string>",
+  "request_id": "<string>",
+  "created": 123,
+  "model": "<string>",
+  "choices": [
+    {
+      "index": 123,
+      "message": {
+        "role": "assistant",
+        "content": "<string>",
+        "reasoning_content": "<string>",
+        "audio": {
+          "id": "<string>",
+          "data": "<string>",
+          "expires_at": "<string>"
+        },
+        "tool_calls": [
+          {
+            "function": {
+              "name": "<string>",
+              "arguments": "<string>"
+            },
+            "mcp": {
+              "id": "<string>",
+              "type": "mcp_list_tools",
+              "server_label": "<string>",
+              "error": "<string>",
+              "tools": [
+                {
+                  "name": "<string>",
+                  "description": "<string>",
+                  "annotations": {},
+                  "input_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [
+                      "<string>"
+                    ],
+                    "additionalProperties": true
+                  }
+                }
+              ],
+              "arguments": "<string>",
+              "name": "<string>",
+              "output": {}
+            },
+            "id": "<string>",
+            "type": "<string>"
+          }
+        ]
+      },
+      "finish_reason": "<string>"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 123,
+    "completion_tokens": 123,
+    "prompt_tokens_details": {
+      "cached_tokens": 123
+    },
+    "total_tokens": 123
+  },
+  "video_result": [
+    {
+      "url": "<string>",
+      "cover_image_url": "<string>"
+    }
+  ],
+  "web_search": [
+    {
+      "icon": "<string>",
+      "title": "<string>",
+      "link": "<string>",
+      "media": "<string>",
+      "publish_date": "<string>",
+      "content": "<string>",
+      "refer": "<string>"
+    }
+  ],
+  "content_filter": [
+    {
+      "role": "<string>",
+      "level": 123
+    }
+  ]
+}
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+
+******
+
+
+生成视频(异步)
+
+Copy page
+
+通过调用 视频模型 能力生成视频内容。支持多种视频生成方式，包括文本转视频、图像转视频等。注意此为异步接口，通过 查询异步结果 获取生成视频结果。
+
+POST
+/
+paas
+/
+v4
+/
+videos
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+CogVideoX-3
+CogVideoX
+Vidu: Text to Video
+Vidu: Image to Video
+Vidu: First & Last Frame to Video
+Vidu: Ref to Video
+​
+model
+enum<string>required
+要调用的模型编码。
+
+Available options: cogvideox-3 
+​
+prompt
+string
+视频的文本描述，字符长度不能超过512个字符, image_url和prompt二选一。
+
+Example:
+"A cat is playing with a ball."
+
+​
+quality
+enum<string>
+输出模式，默认为 speed。 quality：质量优先，生成质量高。 speed：速度优先，生成时间更快，质量相对稍低。
+
+Available options: speed, quality 
+Example:
+"speed"
+
+​
+with_audio
+boolean
+是否生成 AI 音效。默认值：False （不生成音效）。
+
+Example:
+false
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+image_url
+
+string<uri>
+提供基于其生成内容的图像，如果传入此参数，系统将以该图像为基础进行操作。支持通过URL或Base64编码传入图片。图片要求如下：图片支持.png、.jpeg、.jpg 格式、图片大小：不超过5M, image_url和prompt二选一。
+首尾帧：支持输入两张图，上传的第一张图片视作首帧图，第二张图片视作尾帧图，模型将以此参数中传入的图片来生成视频
+首尾帧模式只支持speed 模式
+
+Example:
+"https://example.com/image.png"
+
+​
+size
+enum<string>
+默认值：若不指定，默认生成视频的短边为 1080，长边根据原图片比例确认。最高支持 4K 分辨率。
+
+Available options: 1280x720, 720x1280, 1024x1024, 1920x1080, 1080x1920, 2048x1080, 3840x2160 
+Example:
+"1920x1080"
+
+​
+fps
+enum<integer>
+视频帧率（FPS），可选值为 30 或 60。默认值：30。
+
+Available options: 30, 60 
+Example:
+30
+
+​
+duration
+enum<integer>
+视频持续时长，默认5秒，支持5、10
+
+Available options: 5, 10 
+Example:
+5
+
+​
+request_id
+string
+由客户端提供，必须唯一；用于区分每个请求的唯一标识符。如果客户端未提供，平台将默认生成一个。
+
+​
+user_id
+string
+终端用户的唯一 ID，协助平台干预终端用户违规、生成非法或不当信息或其他滥用行为。ID 长度要求：最少 6 个字符，最多 128 个字符。
+
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+model
+string
+此次调用使用的名称。
+
+​
+id
+string
+生成的任务ID，调用请求结果接口时使用此ID。
+
+​
+request_id
+string
+用户在客户端请求期间提交的任务编号或平台生成的任务编号。
+
+​
+task_status
+string
+处理状态，PROCESSING (处理中)、SUCCESS (成功)、FAIL (失败)。结果需要通过查询获取。
+
+
+
+生成视频示例：
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/videos/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogvideox-3",
+  "prompt": "A cat is playing with a ball.",
+  "quality": "quality",
+  "with_audio": true,
+  "size": "1920x1080",
+  "fps": 30
+}
+'
+
+200
+{
+  "model": "<string>",
+  "id": "<string>",
+  "request_id": "<string>",
+  "task_status": "<string>"
+}
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+
+******
+
+生成视频(异步)
+
+Copy page
+
+通过调用 视频模型 能力生成视频内容。支持多种视频生成方式，包括文本转视频、图像转视频等。注意此为异步接口，通过 查询异步结果 获取生成视频结果。
+
+POST
+/
+paas
+/
+v4
+/
+videos
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+CogVideoX-3
+CogVideoX
+Vidu: Text to Video
+Vidu: Image to Video
+Vidu: First & Last Frame to Video
+Vidu: Ref to Video
+​
+model
+enum<string>required
+要调用的模型编码。
+
+Available options: cogvideox-3 
+​
+prompt
+string
+视频的文本描述，字符长度不能超过512个字符, image_url和prompt二选一。
+
+Example:
+"A cat is playing with a ball."
+
+​
+quality
+enum<string>
+输出模式，默认为 speed。 quality：质量优先，生成质量高。 speed：速度优先，生成时间更快，质量相对稍低。
+
+Available options: speed, quality 
+Example:
+"speed"
+
+​
+with_audio
+boolean
+是否生成 AI 音效。默认值：False （不生成音效）。
+
+Example:
+false
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+image_url
+
+string<uri>
+提供基于其生成内容的图像，如果传入此参数，系统将以该图像为基础进行操作。支持通过URL或Base64编码传入图片。图片要求如下：图片支持.png、.jpeg、.jpg 格式、图片大小：不超过5M, image_url和prompt二选一。
+首尾帧：支持输入两张图，上传的第一张图片视作首帧图，第二张图片视作尾帧图，模型将以此参数中传入的图片来生成视频
+首尾帧模式只支持speed 模式
+
+Example:
+"https://example.com/image.png"
+
+​
+size
+enum<string>
+默认值：若不指定，默认生成视频的短边为 1080，长边根据原图片比例确认。最高支持 4K 分辨率。
+
+Available options: 1280x720, 720x1280, 1024x1024, 1920x1080, 1080x1920, 2048x1080, 3840x2160 
+Example:
+"1920x1080"
+
+​
+fps
+enum<integer>
+视频帧率（FPS），可选值为 30 或 60。默认值：30。
+
+Available options: 30, 60 
+Example:
+30
+
+​
+duration
+enum<integer>
+视频持续时长，默认5秒，支持5、10
+
+Available options: 5, 10 
+Example:
+5
+
+​
+request_id
+string
+由客户端提供，必须唯一；用于区分每个请求的唯一标识符。如果客户端未提供，平台将默认生成一个。
+
+​
+user_id
+string
+终端用户的唯一 ID，协助平台干预终端用户违规、生成非法或不当信息或其他滥用行为。ID 长度要求：最少 6 个字符，最多 128 个字符。
+
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+model
+string
+此次调用使用的名称。
+
+​
+id
+string
+生成的任务ID，调用请求结果接口时使用此ID。
+
+​
+request_id
+string
+用户在客户端请求期间提交的任务编号或平台生成的任务编号。
+
+​
+task_status
+string
+处理状态，PROCESSING (处理中)、SUCCESS (成功)、FAIL (失败)。结果需要通过查询获取。
+
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/videos/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogvideox-3",
+  "prompt": "A cat is playing with a ball.",
+  "quality": "quality",
+  "with_audio": true,
+  "size": "1920x1080",
+  "fps": 30
+}
+'
+
+
+200
+{
+  "model": "<string>",
+  "id": "<string>",
+  "request_id": "<string>",
+  "task_status": "<string>"
+}
+
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+
+
+
+******
+
+生成视频(异步)
+
+Copy page
+
+通过调用 视频模型 能力生成视频内容。支持多种视频生成方式，包括文本转视频、图像转视频等。注意此为异步接口，通过 查询异步结果 获取生成视频结果。
+
+POST
+/
+paas
+/
+v4
+/
+videos
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+CogVideoX-3
+CogVideoX
+Vidu: Text to Video
+Vidu: Image to Video
+Vidu: First & Last Frame to Video
+Vidu: Ref to Video
+​
+model
+enum<string>required
+要调用的模型编码。
+
+Available options: cogvideox-3 
+​
+prompt
+string
+视频的文本描述，字符长度不能超过512个字符, image_url和prompt二选一。
+
+Example:
+"A cat is playing with a ball."
+
+​
+quality
+enum<string>
+输出模式，默认为 speed。 quality：质量优先，生成质量高。 speed：速度优先，生成时间更快，质量相对稍低。
+
+Available options: speed, quality 
+Example:
+"speed"
+
+​
+with_audio
+boolean
+是否生成 AI 音效。默认值：False （不生成音效）。
+
+Example:
+false
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+image_url
+
+string<uri>
+提供基于其生成内容的图像，如果传入此参数，系统将以该图像为基础进行操作。支持通过URL或Base64编码传入图片。图片要求如下：图片支持.png、.jpeg、.jpg 格式、图片大小：不超过5M, image_url和prompt二选一。
+首尾帧：支持输入两张图，上传的第一张图片视作首帧图，第二张图片视作尾帧图，模型将以此参数中传入的图片来生成视频
+首尾帧模式只支持speed 模式
+
+Example:
+"https://example.com/image.png"
+
+​
+size
+enum<string>
+默认值：若不指定，默认生成视频的短边为 1080，长边根据原图片比例确认。最高支持 4K 分辨率。
+
+Available options: 1280x720, 720x1280, 1024x1024, 1920x1080, 1080x1920, 2048x1080, 3840x2160 
+Example:
+"1920x1080"
+
+​
+fps
+enum<integer>
+视频帧率（FPS），可选值为 30 或 60。默认值：30。
+
+Available options: 30, 60 
+Example:
+30
+
+​
+duration
+enum<integer>
+视频持续时长，默认5秒，支持5、10
+
+Available options: 5, 10 
+Example:
+5
+
+​
+request_id
+string
+由客户端提供，必须唯一；用于区分每个请求的唯一标识符。如果客户端未提供，平台将默认生成一个。
+
+​
+user_id
+string
+终端用户的唯一 ID，协助平台干预终端用户违规、生成非法或不当信息或其他滥用行为。ID 长度要求：最少 6 个字符，最多 128 个字符。
+
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+model
+string
+此次调用使用的名称。
+
+​
+id
+string
+生成的任务ID，调用请求结果接口时使用此ID。
+
+​
+request_id
+string
+用户在客户端请求期间提交的任务编号或平台生成的任务编号。
+
+​
+task_status
+string
+处理状态，PROCESSING (处理中)、SUCCESS (成功)、FAIL (失败)。结果需要通过查询获取。
+
+
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/videos/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogvideox-3",
+  "prompt": "A cat is playing with a ball.",
+  "quality": "quality",
+  "with_audio": true,
+  "size": "1920x1080",
+  "fps": 30
+}
+'
+
+
+200
+{
+  "model": "<string>",
+  "id": "<string>",
+  "request_id": "<string>",
+  "task_status": "<string>"
+}
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+
+******
+生成视频(异步)
+
+Copy page
+
+通过调用 视频模型 能力生成视频内容。支持多种视频生成方式，包括文本转视频、图像转视频等。注意此为异步接口，通过 查询异步结果 获取生成视频结果。
+
+POST
+/
+paas
+/
+v4
+/
+videos
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+CogVideoX-3
+CogVideoX
+Vidu: Text to Video
+Vidu: Image to Video
+Vidu: First & Last Frame to Video
+Vidu: Ref to Video
+​
+model
+enum<string>required
+要调用的模型编码。
+
+Available options: cogvideox-3 
+​
+prompt
+string
+视频的文本描述，字符长度不能超过512个字符, image_url和prompt二选一。
+
+Example:
+"A cat is playing with a ball."
+
+​
+quality
+enum<string>
+输出模式，默认为 speed。 quality：质量优先，生成质量高。 speed：速度优先，生成时间更快，质量相对稍低。
+
+Available options: speed, quality 
+Example:
+"speed"
+
+​
+with_audio
+boolean
+是否生成 AI 音效。默认值：False （不生成音效）。
+
+Example:
+false
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+image_url
+
+string<uri>
+提供基于其生成内容的图像，如果传入此参数，系统将以该图像为基础进行操作。支持通过URL或Base64编码传入图片。图片要求如下：图片支持.png、.jpeg、.jpg 格式、图片大小：不超过5M, image_url和prompt二选一。
+首尾帧：支持输入两张图，上传的第一张图片视作首帧图，第二张图片视作尾帧图，模型将以此参数中传入的图片来生成视频
+首尾帧模式只支持speed 模式
+
+Example:
+"https://example.com/image.png"
+
+​
+size
+enum<string>
+默认值：若不指定，默认生成视频的短边为 1080，长边根据原图片比例确认。最高支持 4K 分辨率。
+
+Available options: 1280x720, 720x1280, 1024x1024, 1920x1080, 1080x1920, 2048x1080, 3840x2160 
+Example:
+"1920x1080"
+
+​
+fps
+enum<integer>
+视频帧率（FPS），可选值为 30 或 60。默认值：30。
+
+Available options: 30, 60 
+Example:
+30
+
+​
+duration
+enum<integer>
+视频持续时长，默认5秒，支持5、10
+
+Available options: 5, 10 
+Example:
+5
+
+​
+request_id
+string
+由客户端提供，必须唯一；用于区分每个请求的唯一标识符。如果客户端未提供，平台将默认生成一个。
+
+​
+user_id
+string
+终端用户的唯一 ID，协助平台干预终端用户违规、生成非法或不当信息或其他滥用行为。ID 长度要求：最少 6 个字符，最多 128 个字符。
+
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+model
+string
+此次调用使用的名称。
+
+​
+id
+string
+生成的任务ID，调用请求结果接口时使用此ID。
+
+​
+request_id
+string
+用户在客户端请求期间提交的任务编号或平台生成的任务编号。
+
+​
+task_status
+string
+处理状态，PROCESSING (处理中)、SUCCESS (成功)、FAIL (失败)。结果需要通过查询获取。
+
+
+文生视频
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/videos/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogvideox-3",
+  "prompt": "A cat is playing with a ball.",
+  "quality": "quality",
+  "with_audio": true,
+  "size": "1920x1080",
+  "fps": 30
+}
+'
+
+{
+  "model": "<string>",
+  "id": "<string>",
+  "request_id": "<string>",
+  "task_status": "<string>"
+}
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+******
+
+生成视频(异步)
+
+Copy page
+
+通过调用 视频模型 能力生成视频内容。支持多种视频生成方式，包括文本转视频、图像转视频等。注意此为异步接口，通过 查询异步结果 获取生成视频结果。
+
+POST
+/
+paas
+/
+v4
+/
+videos
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+CogVideoX-3
+CogVideoX
+Vidu: Text to Video
+Vidu: Image to Video
+Vidu: First & Last Frame to Video
+Vidu: Ref to Video
+​
+model
+enum<string>required
+要调用的模型编码。
+
+Available options: cogvideox-3 
+​
+prompt
+string
+视频的文本描述，字符长度不能超过512个字符, image_url和prompt二选一。
+
+Example:
+"A cat is playing with a ball."
+
+​
+quality
+enum<string>
+输出模式，默认为 speed。 quality：质量优先，生成质量高。 speed：速度优先，生成时间更快，质量相对稍低。
+
+Available options: speed, quality 
+Example:
+"speed"
+
+​
+with_audio
+boolean
+是否生成 AI 音效。默认值：False （不生成音效）。
+
+Example:
+false
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+image_url
+
+string<uri>
+提供基于其生成内容的图像，如果传入此参数，系统将以该图像为基础进行操作。支持通过URL或Base64编码传入图片。图片要求如下：图片支持.png、.jpeg、.jpg 格式、图片大小：不超过5M, image_url和prompt二选一。
+首尾帧：支持输入两张图，上传的第一张图片视作首帧图，第二张图片视作尾帧图，模型将以此参数中传入的图片来生成视频
+首尾帧模式只支持speed 模式
+
+Example:
+"https://example.com/image.png"
+
+​
+size
+enum<string>
+默认值：若不指定，默认生成视频的短边为 1080，长边根据原图片比例确认。最高支持 4K 分辨率。
+
+Available options: 1280x720, 720x1280, 1024x1024, 1920x1080, 1080x1920, 2048x1080, 3840x2160 
+Example:
+"1920x1080"
+
+​
+fps
+enum<integer>
+视频帧率（FPS），可选值为 30 或 60。默认值：30。
+
+Available options: 30, 60 
+Example:
+30
+
+​
+duration
+enum<integer>
+视频持续时长，默认5秒，支持5、10
+
+Available options: 5, 10 
+Example:
+5
+
+​
+request_id
+string
+由客户端提供，必须唯一；用于区分每个请求的唯一标识符。如果客户端未提供，平台将默认生成一个。
+
+​
+user_id
+string
+终端用户的唯一 ID，协助平台干预终端用户违规、生成非法或不当信息或其他滥用行为。ID 长度要求：最少 6 个字符，最多 128 个字符。
+
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+model
+string
+此次调用使用的名称。
+
+​
+id
+string
+生成的任务ID，调用请求结果接口时使用此ID。
+
+​
+request_id
+string
+用户在客户端请求期间提交的任务编号或平台生成的任务编号。
+
+​
+task_status
+string
+处理状态，PROCESSING (处理中)、SUCCESS (成功)、FAIL (失败)。结果需要通过查询获取。
+
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/videos/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogvideox-3",
+  "prompt": "A cat is playing with a ball.",
+  "quality": "quality",
+  "with_audio": true,
+  "size": "1920x1080",
+  "fps": 30
+}
+'
+
+
+
+{
+  "model": "<string>",
+  "id": "<string>",
+  "request_id": "<string>",
+  "task_status": "<string>"
+}
+
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+******
+图像生成
+
+Copy page
+
+使用 CogView-4 系列模型从文本提示生成高质量图像。CogView-4 适用于图像生成任务，通过对用户文字描述快速、精准的理解，让 AI 的图像表达更加精确和个性化。支持 cogview-4-250304、cogview-4、cogview-3-flash 等模型。
+
+POST
+/
+paas
+/
+v4
+/
+images
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+​
+model
+enum<string>required
+模型编码
+
+Available options: cogview-4-250304, cogview-4, cogview-3-flash 
+Example:
+"cogview-4-250304"
+
+​
+prompt
+stringrequired
+所需图像的文本描述
+
+Example:
+"一只可爱的小猫咪"
+
+​
+quality
+enum<string>default:standard
+生成图像的质量，默认为 standard。hd: 生成更精细、细节更丰富的图像，整体一致性更高，耗时约20秒；standard: 快速生成图像，适合对生成速度有较高要求的场景，耗时约5-10秒。此参数仅支持cogview-4-250304。
+
+Available options: hd, standard 
+​
+size
+stringdefault:1024x1024
+图片尺寸，推荐枚举值：1024x1024 (默认), 768x1344, 864x1152, 1344x768, 1152x864, 1440x720, 720x1440。
+自定义参数：长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px。
+
+Example:
+"1024x1024"
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+user_id
+string
+终端用户的唯一ID，协助平台对终端用户的违规行为、生成违法及不良信息或其他滥用行为进行干预。ID长度要求：最少6个字符，最多128个字符。
+
+Required string length: 6 - 128
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+created
+integer
+请求创建时间，是以秒为单位的Unix时间戳
+
+​
+data
+object[]
+数组，包含生成的图片URL。目前数组中只包含一张图片。
+
+Hide child attributes
+
+​
+data.url
+stringrequired
+图片链接。图片的临时链接有效期为30天，请及时转存图片。
+
+​
+content_filter
+object[]
+返回内容安全的相关信息
+
+Hide child attributes
+
+​
+content_filter.role
+enum<string>
+安全生效环节，包括 role = assistant 模型推理，role = user 用户输入，role = history 历史上下文
+
+Available options: assistant, user, history 
+​
+content_filter.level
+integer
+严重程度 level 0-3，level 0表示最严重，3表示轻微
+
+Required range: 0 <= x <= 3
+
+
+
+图像生成
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/images/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogView-4-250304",
+  "prompt": "一只可爱的小猫咪，坐在阳光明媚的窗台上，背景是蓝天白云.",
+  "size": "1024x1024",
+  "quality": "standard"
+}
+'
+
+
+{
+  "created": 123,
+  "data": [
+    {
+      "url": "<string>"
+    }
+  ],
+  "content_filter": [
+    {
+      "role": "assistant",
+      "level": 1
+    }
+  ]
+}
+
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+******
+
+图像生成
+
+Copy page
+
+使用 CogView-4 系列模型从文本提示生成高质量图像。CogView-4 适用于图像生成任务，通过对用户文字描述快速、精准的理解，让 AI 的图像表达更加精确和个性化。支持 cogview-4-250304、cogview-4、cogview-3-flash 等模型。
+
+POST
+/
+paas
+/
+v4
+/
+images
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+​
+model
+enum<string>required
+模型编码
+
+Available options: cogview-4-250304, cogview-4, cogview-3-flash 
+Example:
+"cogview-4-250304"
+
+​
+prompt
+stringrequired
+所需图像的文本描述
+
+Example:
+"一只可爱的小猫咪"
+
+​
+quality
+enum<string>default:standard
+生成图像的质量，默认为 standard。hd: 生成更精细、细节更丰富的图像，整体一致性更高，耗时约20秒；standard: 快速生成图像，适合对生成速度有较高要求的场景，耗时约5-10秒。此参数仅支持cogview-4-250304。
+
+Available options: hd, standard 
+​
+size
+stringdefault:1024x1024
+图片尺寸，推荐枚举值：1024x1024 (默认), 768x1344, 864x1152, 1344x768, 1152x864, 1440x720, 720x1440。
+自定义参数：长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px。
+
+Example:
+"1024x1024"
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+user_id
+string
+终端用户的唯一ID，协助平台对终端用户的违规行为、生成违法及不良信息或其他滥用行为进行干预。ID长度要求：最少6个字符，最多128个字符。
+
+Required string length: 6 - 128
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+created
+integer
+请求创建时间，是以秒为单位的Unix时间戳
+
+​
+data
+object[]
+数组，包含生成的图片URL。目前数组中只包含一张图片。
+
+Hide child attributes
+
+​
+data.url
+stringrequired
+图片链接。图片的临时链接有效期为30天，请及时转存图片。
+
+​
+content_filter
+object[]
+返回内容安全的相关信息
+
+Hide child attributes
+
+​
+content_filter.role
+enum<string>
+安全生效环节，包括 role = assistant 模型推理，role = user 用户输入，role = history 历史上下文
+
+Available options: assistant, user, history 
+​
+content_filter.level
+integer
+严重程度 level 0-3，level 0表示最严重，3表示轻微
+
+Required range: 0 <= x <= 3
+
+
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/images/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogView-4-250304",
+  "prompt": "一只可爱的小猫咪，坐在阳光明媚的窗台上，背景是蓝天白云.",
+  "size": "1024x1024",
+  "quality": "standard"
+}
+'
+
+
+
+200
+{
+  "created": 123,
+  "data": [
+    {
+      "url": "<string>"
+    }
+  ],
+  "content_filter": [
+    {
+      "role": "assistant",
+      "level": 1
+    }
+  ]
+}
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+
+******
+
+图像生成
+
+Copy page
+
+使用 CogView-4 系列模型从文本提示生成高质量图像。CogView-4 适用于图像生成任务，通过对用户文字描述快速、精准的理解，让 AI 的图像表达更加精确和个性化。支持 cogview-4-250304、cogview-4、cogview-3-flash 等模型。
+
+POST
+/
+paas
+/
+v4
+/
+images
+/
+generations
+
+Try it
+Authorizations
+​
+Authorization
+stringheaderrequired
+使用以下格式进行身份验证：Bearer
+
+Body
+application/json
+​
+model
+enum<string>required
+模型编码
+
+Available options: cogview-4-250304, cogview-4, cogview-3-flash 
+Example:
+"cogview-4-250304"
+
+​
+prompt
+stringrequired
+所需图像的文本描述
+
+Example:
+"一只可爱的小猫咪"
+
+​
+quality
+enum<string>default:standard
+生成图像的质量，默认为 standard。hd: 生成更精细、细节更丰富的图像，整体一致性更高，耗时约20秒；standard: 快速生成图像，适合对生成速度有较高要求的场景，耗时约5-10秒。此参数仅支持cogview-4-250304。
+
+Available options: hd, standard 
+​
+size
+stringdefault:1024x1024
+图片尺寸，推荐枚举值：1024x1024 (默认), 768x1344, 864x1152, 1344x768, 1152x864, 1440x720, 720x1440。
+自定义参数：长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px。
+
+Example:
+"1024x1024"
+
+​
+watermark_enabled
+boolean
+控制AI生成图片时是否添加水印。
+
+true: 默认启用AI生成的显式水印及隐式数字水印，符合政策要求。
+false: 关闭所有水印，仅允许已签署免责声明的客户使用，签署路径：个人中心-安全管理-去水印管理
+Example:
+true
+
+​
+user_id
+string
+终端用户的唯一ID，协助平台对终端用户的违规行为、生成违法及不良信息或其他滥用行为进行干预。ID长度要求：最少6个字符，最多128个字符。
+
+Required string length: 6 - 128
+Response
+
+200
+
+application/json
+业务处理成功
+
+​
+created
+integer
+请求创建时间，是以秒为单位的Unix时间戳
+
+​
+data
+object[]
+数组，包含生成的图片URL。目前数组中只包含一张图片。
+
+Hide child attributes
+
+​
+data.url
+stringrequired
+图片链接。图片的临时链接有效期为30天，请及时转存图片。
+
+​
+content_filter
+object[]
+返回内容安全的相关信息
+
+Hide child attributes
+
+​
+content_filter.role
+enum<string>
+安全生效环节，包括 role = assistant 模型推理，role = user 用户输入，role = history 历史上下文
+
+Available options: assistant, user, history 
+​
+content_filter.level
+integer
+严重程度 level 0-3，level 0表示最严重，3表示轻微
+
+Required range: 0 <= x <= 3
+
+
+图像生成
+
+curl --request POST \
+  --url https://open.bigmodel.cn/api/paas/v4/images/generations \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '
+{
+  "model": "cogView-4-250304",
+  "prompt": "一只可爱的小猫咪，坐在阳光明媚的窗台上，背景是蓝天白云.",
+  "size": "1024x1024",
+  "quality": "standard"
+}
+'
+
+{
+  "created": 123,
+  "data": [
+    {
+      "url": "<string>"
+    }
+  ],
+  "content_filter": [
+    {
+      "role": "assistant",
+      "level": 1
+    }
+  ]
+}
+
+
+{
+  "error": {
+    "code": "<string>",
+    "message": "<string>"
+  }
+}
+
+*****
+CogVideoX-Flash  是普惠视频模型 免费调用
+
+GLM-4-Flash-250414  普惠文本模型，免费调用
+
+GLM-4.5-Flash   普惠深度思考模型，免费调用
+
+CogVideoX-3    视频生成  智谱最强视频生成模型，支持图生、文生、首尾帧生成，画面稳定清晰，主体运动流畅
+
+GLM-4.6V    视觉推理  智谱最强多模态模型，视觉理解精度达同级别SOTA，128K 上下文，原生支持工具调用
+
+
+CogVideoX-2  支持主体大幅运动，可驾驭多种艺术风格
+
+viduq1-image   图片生成视频
+
+ViduQ1-text    文本生成视频
+
+vidu2-image  图像生成视频
+
+vidu2-reference   多图参考生成视频

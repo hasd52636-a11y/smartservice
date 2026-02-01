@@ -1,0 +1,2409 @@
+. 视频生成API参数格式
+各个提供商(神马、智谱、Google)的视频生成API的具体参数格式是什么？
+时长参数是如何传递的？(duration: 10 还是其他格式？)
+宽高比参数是如何传递的？(aspectRatio: "16:9" 还是其他格式？)
+2. 参考图像处理
+参考图像是通过URL传递还是base64数据？
+是否支持多张参考图像？
+图像格式有什么限制？
+3. 提示词限制
+各个提供商对提示词长度的具体限制是多少？
+是否有其他内容限制？
+4. 响应格式
+视频生成完成后返回的数据格式是什么？
+是直接返回视频URL还是需要轮询状态？
+错误响应的格式是什么？
+5. 角色客串功能
+角色客串(character)功能的API调用格式是什么？
+需要哪些参数？
+你能提供这些API的官方文档或者具体的调用示例吗？这样我就能确保视频模块的所有功能都能正确工作。
+
+
+指南
+产品简介
+​
+1.
+产品介绍
+基于优秀的基础模型，提供高性价比的 GenAI 服务。
+​
+2.
+产品特色
+作为集合顶尖大模型的一站式云服务平台，致力于为开发者提供更快、更便宜、更全面、体验更丝滑的模型API。
+已上架多种大语言模型、图片生成模型、代码生成模型、向量与重排序模型以及多模态大模型。
+让开发者与产品经理无需担心研发阶段和大规模推广所带来的算力成本，实现“Token 自由”。
+提供开箱即用的大模型推理加速服务，为您的 GenAI 应用带来更高效的用户体验
+快速上手
+1.
+登录平台
+2.
+查看模型列表和模型详情
+3.
+获取 Api Key 和 Base URL
+4.
+调用API
+我们完全对齐 OpenAI 官方 OpenAI Docs 和 OpenAI API Reference，使用方法完全一致。基于官方 Model Endpoint Compatibility
+
+
+通知设置-WebHook参数介绍
+仅支持 POST 地址作为 Web Hook 地址
+我们将会发送以下请求到您的地址
+
+curl -X POST 'https://example.com/webhook' \
+-H 'Content-Type: application/json' \
+-H 'Authorization: Bearer your_api_key' \
+-d '{"topic": "user_quota_too_low", "data": {"quota": 0.5}}'
+
+
+
+Models（列出模型）
+GET
+/v1/models
+最后修改时间：
+17 天前
+列出当前可用的模型，OpenAI 格式
+在 Header 添加参数 Authorization，其值为在 Bearer 之后拼接 Token
+示例Authorization: Bearer 2f68dbbf-519d-4f01-9636-e2421b68f379
+请求参数
+
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+请求示例
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+
+var requestOptions = {
+   method: 'GET',
+   headers: myHeaders,
+   redirect: 'follow'
+};
+
+fetch("/v1/models", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+******
+
+
+Gemini 官方格式
+POST
+/v1beta/models/gemini-2.5-pro:generateContent
+最后修改时间：
+4 个月前
+支持 Gemini 官方格式；
+所有模型均支持使用 Gemini 格式
+
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+Body 参数
+application/json
+contents
+array [object] 
+必需
+parts
+array [object] 
+可选
+generationConfig
+object 
+必需
+thinkingConfig
+object 
+必需
+
+
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "Explain how AI works in a few words"
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "thinkingConfig": {
+      "thinkingBudget": 128,
+      "includeThoughts": true
+    }
+  }
+}
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "contents": [
+      {
+         "parts": [
+            {
+               "text": "Explain how AI works in a few words"
+            }
+         ]
+      }
+   ],
+   "generationConfig": {
+      "thinkingConfig": {
+         "thinkingBudget": 128,
+         "includeThoughts": true
+      }
+   }
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1beta/models/gemini-2.5-pro:generateContent", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+******
+Chat(分析图片)
+POST
+/v1/chat/completions
+最后修改时间：
+17 天前
+官方指南
+官方API文档
+所有对话模型，都可使用此接口， 修改 model 属性为模型名
+需要模型支持识图能力
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Accept
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+Body 参数
+application/json
+model
+string 
+必需
+要使用的模型的 ID。有关哪些模型适用于聊天 API 的详细信息，请参阅模型端点兼容性表。
+messages
+array [object] 
+必需
+以聊天格式生成聊天完成的消息。
+role
+string 
+可选
+content
+string 
+可选
+temperature
+integer 
+可选
+使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。
+top_p
+integer 
+可选
+一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。
+n
+integer 
+可选
+为每个输入消息生成多少个聊天完成选项。
+stream
+boolean 
+可选
+如果设置，将发送部分消息增量，就像在 ChatGPT 中一样。当令牌可用时，令牌将作为纯数据服务器发送事件data: [DONE]发送，流由消息终止。有关示例代码，请参阅 OpenAI Cookbook 。
+stop
+string 
+可选
+API 将停止生成更多令牌的最多 4 个序列。
+max_tokens
+integer 
+可选
+聊天完成时生成的最大令牌数。 输入标记和生成标记的总长度受模型上下文长度的限制。
+presence_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据到目前为止是否出现在文本中来惩罚新标记，从而增加模型谈论新主题的可能性。 查看有关频率和存在惩罚的更多信息。
+frequency_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据新标记在文本中的现有频率对其进行惩罚，从而降低模型逐字重复同一行的可能性。 查看有关频率和存在惩罚的更多信息。
+logit_bias
+null 
+可选
+修改指定标记出现在完成中的可能性。 接受一个 json 对象，该对象将标记（由标记器中的标记 ID 指定）映射到从 -100 到 100 的关联偏差值。从数学上讲，偏差会在采样之前添加到模型生成的 logits 中。确切的效果因模型而异，但 -1 和 1 之间的值应该会减少或增加选择的可能性；像 -100 或 100 这样的值应该导致相关令牌的禁止或独占选择。
+user
+string 
+可选
+代表您的最终用户的唯一标识符，可以帮助 OpenAI 监控和检测滥用行为。了解更多。
+
+示例
+{
+    "model": "gpt-4o",
+    "stream": false,
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "这张图片有什么"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://github.com/dianping/cat/raw/master/cat-home/src/main/webapp/images/logo/cat_logo03.png"
+                    }
+                }
+            ]
+        }
+    ],
+    "max_tokens": 400
+}
+
+
+请求代码示例
+
+var myHeaders = new Headers();
+myHeaders.append("Accept", "application/json");
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "gpt-4o",
+   "stream": false,
+   "messages": [
+      {
+         "role": "user",
+         "content": [
+            {
+               "type": "text",
+               "text": "这张图片有什么"
+            },
+            {
+               "type": "image_url",
+               "image_url": {
+                  "url": "https://github.com/dianping/cat/raw/master/cat-home/src/main/webapp/images/logo/cat_logo03.png"
+               }
+            }
+         ]
+      }
+   ],
+   "max_tokens": 400
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/chat/completions", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+******
+Chat(分析视频)
+POST
+/v1/chat/completions
+最后修改时间：
+17 天前
+所有对话模型，都可使用此接口， 修改 model 属性为模型名
+需要模型支持视频读取能力
+暂时只有 Gemini 系列
+
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Accept
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+Body 参数
+application/json
+model
+string 
+必需
+要使用的模型的 ID。有关哪些模型适用于聊天 API 的详细信息，请参阅模型端点兼容性表。
+messages
+array [object] 
+必需
+以聊天格式生成聊天完成的消息。
+role
+string 
+可选
+content
+string 
+可选
+temperature
+integer 
+可选
+使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。
+top_p
+integer 
+可选
+一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。
+n
+integer 
+可选
+为每个输入消息生成多少个聊天完成选项。
+stream
+boolean 
+可选
+如果设置，将发送部分消息增量，就像在 ChatGPT 中一样。当令牌可用时，令牌将作为纯数据服务器发送事件data: [DONE]发送，流由消息终止。有关示例代码，请参阅 OpenAI Cookbook 。
+stop
+string 
+可选
+API 将停止生成更多令牌的最多 4 个序列。
+max_tokens
+integer 
+可选
+聊天完成时生成的最大令牌数。 输入标记和生成标记的总长度受模型上下文长度的限制。
+presence_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据到目前为止是否出现在文本中来惩罚新标记，从而增加模型谈论新主题的可能性。 查看有关频率和存在惩罚的更多信息。
+frequency_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据新标记在文本中的现有频率对其进行惩罚，从而降低模型逐字重复同一行的可能性。 查看有关频率和存在惩罚的更多信息。
+logit_bias
+null 
+可选
+修改指定标记出现在完成中的可能性。 接受一个 json 对象，该对象将标记（由标记器中的标记 ID 指定）映射到从 -100 到 100 的关联偏差值。从数学上讲，偏差会在采样之前添加到模型生成的 logits 中。确切的效果因模型而异，但 -1 和 1 之间的值应该会减少或增加选择的可能性；像 -100 或 100 这样的值应该导致相关令牌的禁止或独占选择。
+user
+string 
+可选
+代表您的最终用户的唯一标识符，可以帮助 OpenAI 监控和检测滥用行为。了解更多。
+
+示例
+{
+    "model": "gemini-2.5-pro-preview-05-06",
+    "stream": true,
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "这个视频讲了什么？"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://cdn.klingai.com/bs2/upload-kling-api/9940478466/image2video/ChDGZWhmQd8AAAAAAWo7kg-0_raw_video_2.mp4"
+                    }
+                }
+            ]
+        }
+    ],
+    "max_tokens": 4000
+}
+
+请求代码示例
+var myHeaders = new Headers();
+myHeaders.append("Accept", "application/json");
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "gemini-2.5-pro-preview-05-06",
+   "stream": true,
+   "messages": [
+      {
+         "role": "user",
+         "content": [
+            {
+               "type": "text",
+               "text": "这个视频讲了什么？"
+            },
+            {
+               "type": "image_url",
+               "image_url": {
+                  "url": "https://cdn.klingai.com/bs2/upload-kling-api/9940478466/image2video/ChDGZWhmQd8AAAAAAWo7kg-0_raw_video_2.mp4"
+               }
+            }
+         ]
+      }
+   ],
+   "max_tokens": 4000
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/chat/completions", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+OK
+application/json
+id
+string 
+必需
+object
+string 
+必需
+created
+integer 
+必需
+choices
+array [object] 
+必需
+index
+integer 
+可选
+message
+object 
+可选
+finish_reason
+string 
+可选
+usage
+object 
+必需
+prompt_tokens
+integer 
+必需
+completion_tokens
+integer 
+必需
+total_tokens
+integer 
+必需
+
+{
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "\n\nHello there, how may I assist you today?"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 9,
+        "completion_tokens": 12,
+        "total_tokens": 21
+    }
+}
+
+******
+在需要使用OpenAI API的地方，将 api.openai.com 替换为平台获取的 Base_URL 即可
+替换示例：
+官方 : https://api.openai.com/v1/chat/completions
+我们 : https://{{Base_URL}}/v1/chat/completions
+请注意：
+有些App或者网站，API_Base为：https://api.openai.com 或 https://api.openai.com/v1
+此时应该替换为：https://{{Base_URL}} 或 https://{{Base_URL}}/v1
+代码中调用请注意：
+关于API KEY的填写，在Header的Authorization参数里，将管理后台-API KEYS里生成的API KEY填在Bearer后面，比如Bearer sk-xxxxxxx
+******
+
+Chat(结构化输出)
+POST
+/v1/chat/completions
+最后修改时间：
+17 天前
+官方指南
+官方API文档
+所有对话模型，都可使用此接口， 修改 model 属性为模型名
+给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+为提供的提示和参数创建完成
+
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Accept
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+Body 参数
+application/json
+model
+string 
+必需
+要使用的模型的 ID。有关哪些模型可与聊天 API 一起使用的详细信息,请参阅模型端点兼容性表。
+messages
+array [object] 
+必需
+至今为止对话所包含的消息列表。Python 代码示例。
+role
+string 
+可选
+content
+string 
+可选
+temperature
+integer 
+可选
+使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。
+top_p
+integer 
+可选
+一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。
+n
+integer 
+可选
+默认为 1
+为每个输入消息生成多少个聊天补全选择。
+stream
+boolean 
+可选
+默认为 false 如果设置,则像在 ChatGPT 中一样会发送部分消息增量。标记将以仅数据的服务器发送事件的形式发送,这些事件在可用时,并在 data: [DONE] 消息终止流。Python 代码示例。
+stop
+string 
+可选
+默认为 null 最多 4 个序列,API 将停止进一步生成标记。
+max_tokens
+integer 
+可选
+默认为 inf
+在聊天补全中生成的最大标记数。
+输入标记和生成标记的总长度受模型的上下文长度限制。计算标记的 Python 代码示例。
+presence_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据到目前为止是否出现在文本中来惩罚新标记，从而增加模型谈论新主题的可能性。 查看有关频率和存在惩罚的更多信息。
+frequency_penalty
+number 
+可选
+默认为 0 -2.0 到 2.0 之间的数字。正值根据文本目前的存在频率惩罚新标记,降低模型重复相同行的可能性。 有关频率和存在惩罚的更多信息。
+logit_bias
+null 
+可选
+修改指定标记出现在补全中的可能性。
+接受一个 JSON 对象,该对象将标记(由标记器指定的标记 ID)映射到相关的偏差值(-100 到 100)。从数学上讲,偏差在对模型进行采样之前添加到模型生成的 logit 中。确切效果因模型而异,但-1 和 1 之间的值应减少或增加相关标记的选择可能性;如-100 或 100 这样的值应导致相关标记的禁用或独占选择。
+user
+string 
+可选
+代表您的最终用户的唯一标识符，可以帮助 OpenAI 监控和检测滥用行为。了解更多。
+response_format
+object 
+可选
+指定模型必须输出的格式的对象。 将 { "type": "json_object" } 启用 JSON 模式,这可以确保模型生成的消息是有效的 JSON。 重要提示:使用 JSON 模式时,还必须通过系统或用户消息指示模型生成 JSON。如果不这样做,模型可能会生成无休止的空白流,直到生成达到令牌限制,从而导致延迟增加和请求“卡住”的外观。另请注意,如果 finish_reason="length",则消息内容可能会被部分切断,这表示生成超过了 max_tokens 或对话超过了最大上下文长度。 显示属性
+seen
+integer 
+可选
+此功能处于测试阶段。如果指定,我们的系统将尽最大努力确定性地进行采样,以便使用相同的种子和参数进行重复请求应返回相同的结果。不能保证确定性,您应该参考 system_fingerprint 响应参数来监控后端的更改。
+tools
+array[string]
+必需
+模型可以调用的一组工具列表。目前,只支持作为工具的函数。使用此功能来提供模型可以为之生成 JSON 输入的函数列表。
+tool_choice
+object 
+必需
+控制模型调用哪个函数(如果有的话)。none 表示模型不会调用函数,而是生成消息。auto 表示模型可以在生成消息和调用函数之间进行选择。通过 {"type": "function", "function": {"name": "my_function"}} 强制模型调用该函数。 如果没有函数存在,默认为 none。如果有函数存在,默认为 auto。 显示可能的类型
+
+
+{
+  "model": "gpt-4o-2024-08-06",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful math tutor. Guide the user through the solution step by step."
+    },
+    {
+      "role": "user",
+      "content": "9.11和9.8谁大"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "math_reasoning",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "explanation": {
+                  "type": "string"
+                },
+                "output": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "explanation",
+                "output"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "final_answer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "steps",
+          "final_answer"
+        ],
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  }
+}
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Accept", "application/json");
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "gpt-4o-2024-08-06",
+   "messages": [
+      {
+         "role": "system",
+         "content": "You are a helpful math tutor. Guide the user through the solution step by step."
+      },
+      {
+         "role": "user",
+         "content": "9.11和9.8谁大"
+      }
+   ],
+   "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+         "name": "math_reasoning",
+         "schema": {
+            "type": "object",
+            "properties": {
+               "steps": {
+                  "type": "array",
+                  "items": {
+                     "type": "object",
+                     "properties": {
+                        "explanation": {
+                           "type": "string"
+                        },
+                        "output": {
+                           "type": "string"
+                        }
+                     },
+                     "required": [
+                        "explanation",
+                        "output"
+                     ],
+                     "additionalProperties": false
+                  }
+               },
+               "final_answer": {
+                  "type": "string"
+               }
+            },
+            "required": [
+               "steps",
+               "final_answer"
+            ],
+            "additionalProperties": false
+         },
+         "strict": true
+      }
+   }
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/chat/completions", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+OK
+application/json
+id
+string 
+必需
+object
+string 
+必需
+created
+integer 
+必需
+choices
+array [object] 
+必需
+index
+integer 
+可选
+message
+object 
+可选
+finish_reason
+string 
+可选
+usage
+object 
+必需
+prompt_tokens
+integer 
+必需
+completion_tokens
+integer 
+必需
+total_tokens
+integer 
+必需
+
+
+{
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "\n\nHello there, how may I assist you today?"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 9,
+        "completion_tokens": 12,
+        "total_tokens": 21
+    }
+}
+
+
+
+******
+Chat(修改图片)
+POST
+/v1/chat/completions
+最后修改时间：
+17 天前
+官方指南
+官方API文档
+所有对话模型，都可使用此接口， 修改 model 属性为模型名
+需要模型支持生图能力
+
+
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Accept
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+Body 参数
+application/json
+model
+string 
+必需
+要使用的模型的 ID。有关哪些模型适用于聊天 API 的详细信息，请参阅模型端点兼容性表。
+messages
+array [object] 
+必需
+以聊天格式生成聊天完成的消息。
+role
+string 
+可选
+content
+string 
+可选
+temperature
+integer 
+可选
+使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。
+top_p
+integer 
+可选
+一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。
+n
+integer 
+可选
+为每个输入消息生成多少个聊天完成选项。
+stream
+boolean 
+可选
+如果设置，将发送部分消息增量，就像在 ChatGPT 中一样。当令牌可用时，令牌将作为纯数据服务器发送事件data: [DONE]发送，流由消息终止。有关示例代码，请参阅 OpenAI Cookbook 。
+stop
+string 
+可选
+API 将停止生成更多令牌的最多 4 个序列。
+max_tokens
+integer 
+可选
+聊天完成时生成的最大令牌数。 输入标记和生成标记的总长度受模型上下文长度的限制。
+presence_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据到目前为止是否出现在文本中来惩罚新标记，从而增加模型谈论新主题的可能性。 查看有关频率和存在惩罚的更多信息。
+frequency_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据新标记在文本中的现有频率对其进行惩罚，从而降低模型逐字重复同一行的可能性。 查看有关频率和存在惩罚的更多信息。
+logit_bias
+null 
+可选
+修改指定标记出现在完成中的可能性。 接受一个 json 对象，该对象将标记（由标记器中的标记 ID 指定）映射到从 -100 到 100 的关联偏差值。从数学上讲，偏差会在采样之前添加到模型生成的 logits 中。确切的效果因模型而异，但 -1 和 1 之间的值应该会减少或增加选择的可能性；像 -100 或 100 这样的值应该导致相关令牌的禁止或独占选择。
+user
+string 
+可选
+代表您的最终用户的唯一标识符，可以帮助 OpenAI 监控和检测滥用行为。了解更多。
+
+
+示例
+{
+    "model": "gpt-4o-image",
+    "stream": false,
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "修改这个图片"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://github.com/dianping/cat/raw/master/cat-home/src/main/webapp/images/logo/cat_logo03.png"
+                    }
+                }
+            ]
+        }
+    ]
+}
+
+请求代码示例
+var myHeaders = new Headers();
+myHeaders.append("Accept", "application/json");
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "gpt-4o-image",
+   "stream": false,
+   "messages": [
+      {
+         "role": "user",
+         "content": [
+            {
+               "type": "text",
+               "text": "修改这个图片"
+            },
+            {
+               "type": "image_url",
+               "image_url": {
+                  "url": "https://github.com/dianping/cat/raw/master/cat-home/src/main/webapp/images/logo/cat_logo03.png"
+               }
+            }
+         ]
+      }
+   ]
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/chat/completions", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+OK
+application/json
+id
+string 
+必需
+object
+string 
+必需
+created
+integer 
+必需
+choices
+array [object] 
+必需
+index
+integer 
+可选
+message
+object 
+可选
+finish_reason
+string 
+可选
+usage
+object 
+必需
+prompt_tokens
+integer 
+必需
+completion_tokens
+integer 
+必需
+total_tokens
+integer 
+必需
+
+{
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "\n\nHello there, how may I assist you today?"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 9,
+        "completion_tokens": 12,
+        "total_tokens": 21
+    }
+}
+
+******
+
+Chat(生成图片)
+POST
+/v1/chat/completions
+最后修改时间：
+17 天前
+官方指南
+官方API文档
+所有对话模型，都可使用此接口， 修改 model 属性为模型名
+需要模型支持生图能力
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Accept
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+Body 参数
+application/json
+model
+string 
+必需
+要使用的模型的 ID。有关哪些模型适用于聊天 API 的详细信息，请参阅模型端点兼容性表。
+messages
+array [object] 
+必需
+以聊天格式生成聊天完成的消息。
+role
+string 
+可选
+content
+string 
+可选
+temperature
+integer 
+可选
+使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。
+top_p
+integer 
+可选
+一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。
+n
+integer 
+可选
+为每个输入消息生成多少个聊天完成选项。
+stream
+boolean 
+可选
+如果设置，将发送部分消息增量，就像在 ChatGPT 中一样。当令牌可用时，令牌将作为纯数据服务器发送事件data: [DONE]发送，流由消息终止。有关示例代码，请参阅 OpenAI Cookbook 。
+stop
+string 
+可选
+API 将停止生成更多令牌的最多 4 个序列。
+max_tokens
+integer 
+可选
+聊天完成时生成的最大令牌数。 输入标记和生成标记的总长度受模型上下文长度的限制。
+presence_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据到目前为止是否出现在文本中来惩罚新标记，从而增加模型谈论新主题的可能性。 查看有关频率和存在惩罚的更多信息。
+frequency_penalty
+number 
+可选
+-2.0 和 2.0 之间的数字。正值会根据新标记在文本中的现有频率对其进行惩罚，从而降低模型逐字重复同一行的可能性。 查看有关频率和存在惩罚的更多信息。
+logit_bias
+null 
+可选
+修改指定标记出现在完成中的可能性。 接受一个 json 对象，该对象将标记（由标记器中的标记 ID 指定）映射到从 -100 到 100 的关联偏差值。从数学上讲，偏差会在采样之前添加到模型生成的 logits 中。确切的效果因模型而异，但 -1 和 1 之间的值应该会减少或增加选择的可能性；像 -100 或 100 这样的值应该导致相关令牌的禁止或独占选择。
+user
+string 
+可选
+代表您的最终用户的唯一标识符，可以帮助 OpenAI 监控和检测滥用行为。了解更多。
+
+{
+    "model": "gpt-4o-image",
+    "stream": false,
+    "messages": [
+        {
+            "role": "user",
+            "content": "画只猫"
+        }
+    ]
+}
+
+
+请求代码示例
+var myHeaders = new Headers();
+myHeaders.append("Accept", "application/json");
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "gpt-4o-image",
+   "stream": false,
+   "messages": [
+      {
+         "role": "user",
+         "content": "画只猫"
+      }
+   ]
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/chat/completions", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+返回响应
+🟢200
+OK
+application/json
+id
+string 
+必需
+object
+string 
+必需
+created
+integer 
+必需
+choices
+array [object] 
+必需
+index
+integer 
+可选
+message
+object 
+可选
+finish_reason
+string 
+可选
+usage
+object 
+必需
+prompt_tokens
+integer 
+必需
+completion_tokens
+integer 
+必需
+total_tokens
+integer 
+必需
+
+示例
+{
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "\n\nHello there, how may I assist you today?"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 9,
+        "completion_tokens": 12,
+        "total_tokens": 21
+    }
+}
+
+******
+Chat(聊天格式兼容
+POST
+/v1/chat/completions
+最后修改时间：
+3 个月前
+在提示词中添加要求即可，如提示词以(竖屏、横屏,15s,高清）开头; 也可以通过模型名来指定
+sora_video2-portrait 竖屏
+sora_video2-landscape 横屏
+sora_video2-portrait-hd 高清版
+sora_video2-portrait-15s pro 15s 时间
+sora_video2-portrait-hd-15s 高清pro（生成时间很长
+支持多个参考图
+关于审查，官方审查会涉及至少3个阶段/方向：
+1、提交的图片中是否涉及真人（非常像真人的也不行）
+2、提示词内容是否违规（暴力、色情、版权、活着的名人）
+3、生成结果审查是否合格（这也是大家经常看到的生成了90%多后失败的原因）
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Accept
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+Body 参数
+application/json
+model
+string 
+必需
+messages
+array [object] 
+必需
+以聊天格式生成聊天完成的消息。
+role
+string 
+可选
+content
+string 
+可选
+stream
+boolean 
+可选
+如果设置，将发送部分消息增量，就像在 ChatGPT 中一样。当令牌可用时，令牌将作为纯数据服务器发送事件data: [DONE]发送，流由消息终止。有关示例代码，请参阅 OpenAI Cookbook 。
+
+
+{
+    "model": "sora_video2",
+    "stream": false,
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "竖屏 动起来"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://github.com/dianping/cat/raw/master/cat-home/src/main/webapp/images/logo/cat_logo03.png"
+                    }
+                }
+            ]
+        }
+    ]
+}
+
+
+请求代码示例
+var myHeaders = new Headers();
+myHeaders.append("Accept", "application/json");
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "sora_video2",
+   "stream": false,
+   "messages": [
+      {
+         "role": "user",
+         "content": [
+            {
+               "type": "text",
+               "text": "竖屏 动起来"
+            },
+            {
+               "type": "image_url",
+               "image_url": {
+                  "url": "https://github.com/dianping/cat/raw/master/cat-home/src/main/webapp/images/logo/cat_logo03.png"
+               }
+            }
+         ]
+      }
+   ]
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/chat/completions", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+返回响应
+🟢200
+OK
+application/json
+id
+string 
+必需
+object
+string 
+必需
+created
+integer 
+必需
+choices
+array [object] 
+必需
+index
+integer 
+可选
+message
+object 
+可选
+finish_reason
+string 
+可选
+usage
+object 
+必需
+prompt_tokens
+integer 
+必需
+completion_tokens
+integer 
+必需
+total_tokens
+integer 
+必需
+
+
+示例
+{
+    "id": "chatcmpl-123",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "✅ 视频生成成功，[点击这里](https://midjourney-plus.oss-us-west-1.aliyuncs.com/sora/e43f892b-7d30-4100-bf34-8d5e9bbb7398.mp4) 查看视频~~~\n\n"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 9,
+        "completion_tokens": 12,
+        "total_tokens": 21
+    }
+}
+
+******
+Sora2文生视频
+POST
+/v2/videos/generations
+最后修改时间：
+2 个月前
+视频大概耗时
+10s 预计生成时间 1-3 分钟
+15s +2分钟
+hd +8分钟
+关于审查，官方审查会涉及至少3个阶段/方向：
+1、提交的图片中是否涉及真人（非常像真人的也不行）
+2、提示词内容是否违规（暴力、色情、版权、活着的名人）
+3、生成结果审查是否合格（这也是大家经常看到的生成了90%多后失败的原因）
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+Body 参数
+application/json
+prompt
+string 
+必需
+model
+enum<string> 
+必需
+枚举值:
+sora-2
+sora-2-pro
+支持hd、15s
+aspect_ratio
+enum<string> 
+输出比例
+可选
+枚举值:
+16:9
+横屏
+9:16
+竖屏
+hd
+boolean 
+可选
+是否生成高清，默认false；高清会导致生成速度更慢; 仅 sora-2-pro 支持
+duration
+enum<string> 
+可选
+视频时长；仅 sora-2-pro 支持25s
+枚举值:
+10
+15
+25
+仅 sora-2-pro 支持25s；当25时，HD不起作用
+notify_hook
+string 
+可选
+https://xxxx.com/callback
+watermark
+boolean 
+默认 false
+可选
+private
+boolean 
+可选
+是否隐藏视频，true-视频不会发布，同时视频无法进行 remix(二次编辑)， 默认为 false
+
+
+示例
+{
+    "prompt": "make animate",
+    "model": "sora-2",
+    "aspect_ratio": "16:9",
+    "hd": false,
+    "duration": "10"
+}
+
+请求代码示例
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "prompt": "make animate",
+   "model": "sora-2",
+   "aspect_ratio": "16:9",
+   "hd": false,
+   "duration": "10"
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v2/videos/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+
+{
+    "task_id": "f0aa213c-c09e-4e19-a0e5-c698fe48acf1"
+}
+
+******
+Sora2图生视频
+POST
+/v2/videos/generations
+最后修改时间：
+2 个月前
+视频大概耗时
+10s 预计生成时间 1-3 分钟
+15s +2分钟
+hd +8分钟
+图片访问速度慢也会影响耗时，请尽量使用美国访问速度 较快的图片地址
+关于审查，官方审查会涉及至少3个阶段/方向：
+1、提交的图片中是否涉及真人（非常像真人的也不行）
+2、提示词内容是否违规（暴力、色情、版权、活着的名人）
+3、生成结果审查是否合格（这也是大家经常看到的生成了90%多后失败的原因）
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+Body 参数
+application/json
+prompt
+string 
+必需
+model
+enum<string> 
+必需
+枚举值:
+sora-2
+sora-2-pro
+支持hd、15s
+images
+array[string]
+必需
+图片列表，支持url、base64
+aspect_ratio
+enum<string> 
+输出比例
+可选
+枚举值:
+16:9
+横屏
+9:16
+竖屏
+hd
+boolean 
+可选
+是否生成高清，默认false；高清会导致生成速度更慢; 仅 sora-2-pro 支持
+duration
+enum<string> 
+可选
+视频时长；仅 sora-2-pro 支持25s
+枚举值:
+10
+15
+25
+仅 sora-2-pro 支持25s
+notify_hook
+string 
+可选
+watermark
+boolean 
+可选
+private
+boolean 
+可选
+
+
+
+示例
+{
+    "prompt": "string",
+    "model": "sora-2",
+    "images": [
+        "string"
+    ],
+    "aspect_ratio": "16:9",
+    "hd": true,
+    "duration": "10",
+    "notify_hook": "string",
+    "watermark": true,
+    "private": true
+}
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "prompt": "string",
+   "model": "sora-2",
+   "images": [
+      "string"
+   ],
+   "aspect_ratio": "16:9",
+   "hd": true,
+   "duration": "10",
+   "notify_hook": "string",
+   "watermark": true,
+   "private": true
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v2/videos/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+示例
+{
+    "task_id": "f0aa213c-c09e-4e19-a0e5-c698fe48acf1"
+}
+
+******
+Sora2故事板视频
+POST
+/v2/videos/generations
+最后修改时间：
+大约 1 个月前
+提示词按照以下格式传即可自动启用故事板
+Shot 1:\nduration: 7.5sec\nScene: 飞机起飞\n\nShot 2:\nduration: 7.5sec\nScene: 飞机降落
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+prompt
+string 
+必需
+model
+enum<string> 
+必需
+枚举值:
+sora-2
+sora-2-pro
+支持hd、15s
+aspect_ratio
+enum<string> 
+输出比例
+可选
+枚举值:
+16:9
+横屏
+9:16
+竖屏
+hd
+boolean 
+可选
+是否生成高清，默认false；高清会导致生成速度更慢; 仅 sora-2-pro 支持
+duration
+enum<string> 
+可选
+视频时长；仅 sora-2-pro 支持25s
+枚举值:
+10
+15
+25
+仅 sora-2-pro 支持25s；当25时，HD不起作用
+notify_hook
+string 
+可选
+https://xxxx.com/callback
+watermark
+boolean 
+默认 false
+可选
+private
+boolean 
+可选
+是否隐藏视频，true-视频不会发布，同时视频无法进行 remix(二次编辑)， 默认为 false
+
+{
+    "prompt": "Shot 1:\nduration: 7.5sec\nScene: 飞机起飞\n\nShot 2:\nduration: 7.5sec\nScene: 飞机降落",
+    "model": "sora-2",
+    "aspect_ratio": "16:9",
+    "hd": false,
+    "duration": "10"
+}
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "prompt": "Shot 1:\nduration: 7.5sec\nScene: 飞机起飞\n\nShot 2:\nduration: 7.5sec\nScene: 飞机降落",
+   "model": "sora-2",
+   "aspect_ratio": "16:9",
+   "hd": false,
+   "duration": "10"
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v2/videos/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+
+{
+    "task_id": "f0aa213c-c09e-4e19-a0e5-c698fe48acf1"
+}
+
+
+*******
+Sora2 使用角色客串
+POST
+/v2/videos/generations
+最后修改时间：
+大约 1 个月前
+角色客串功能:
+你可以把生成的或者上传你自己的视频，把任何角色对象提取出来，加入视频中作为“客串角色”
+用户不仅能客串自己，还可以创建生活中的角色(如宠物、朋友)或纯想象的角色(如怪物、英雄、奇幻生物)
+只需上传相机里的视频(如宠物鸭子视频)，或直接生成全新角色，甚至从日常物品(如饼干罐)衍生出有趣面孔。
+任何东西都能变身客串，激发无限脑洞
+PS: 这个角色指的是物品，不是人物，人物要走 face id 录入暂不支持上传
+注意调用角色需要跟 prompt 有空格隔开
+例如：@{角色1Username} 在一个舞台上和 @{角色2Username} 牵手跳舞
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+Body 参数
+application/json
+prompt
+string 
+必需
+注意调用角色需要跟 prompt 有空格隔开
+例如：@{角色1Username} 在一个舞台上和 @{角色2Username} 牵手跳舞
+model
+enum<string> 
+必需
+枚举值:
+sora-2
+sora-2-pro
+支持hd、15s
+images
+array[string]
+可选
+图片列表，支持url、base64
+aspect_ratio
+enum<string> 
+输出比例
+可选
+枚举值:
+16:9
+横屏
+9:16
+竖屏
+hd
+boolean 
+可选
+是否生成高清，默认false；高清会导致生成速度更慢; 仅 sora-2-pro 支持
+duration
+enum<string> 
+可选
+视频时长；仅 sora-2-pro 支持25s
+枚举值:
+10
+15
+25
+仅 sora-2-pro 支持25s
+notify_hook
+string 
+可选
+watermark
+boolean 
+可选
+private
+boolean 
+可选
+是否隐藏视频，true-视频不会发布，同时视频无法进行 remix(二次编辑)， 默认为 false
+character_url
+string 
+可选
+创建角色需要的视频链接，注意视频中一定不能出现真人，否则会失败
+character_timestamps
+string 
+可选
+视频角色出现的秒数范围，格式 {start},{end}, 注意 end-start 的范围 1～3秒
+
+
+
+示例
+{
+    "prompt": "string",
+    "model": "sora-2",
+    "images": [
+        "string"
+    ],
+    "aspect_ratio": "16:9",
+    "hd": true,
+    "duration": "10",
+    "notify_hook": "string",
+    "watermark": true,
+    "private": true,
+    "character_url": "string",
+    "character_timestamps": "string"
+}
+
+
+请求示例代码
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "prompt": "string",
+   "model": "sora-2",
+   "images": [
+      "string"
+   ],
+   "aspect_ratio": "16:9",
+   "hd": true,
+   "duration": "10",
+   "notify_hook": "string",
+   "watermark": true,
+   "private": true,
+   "character_url": "string",
+   "character_timestamps": "string"
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v2/videos/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+
+{
+    "task_id": "f0aa213c-c09e-4e19-a0e5-c698fe48acf1"
+}
+
+
+******
+Sora2查询任务
+GET
+/v2/videos/generations/{task_id}
+最后修改时间：
+3 个月前
+统一接口格式
+status 枚举：
+NOT_START ： 未开始
+IN_PROGRESS ： 正在执行
+SUCCESS ： 执行完成
+FAILURE ： 失败
+请求参数
+Path 参数
+task_id
+string 
+必需
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+
+var requestOptions = {
+   method: 'GET',
+   headers: myHeaders,
+   redirect: 'follow'
+};
+
+fetch("/v2/videos/generations/", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+
+{
+    "task_id": "veo3:1756693796-YQVHH4A3Lg",
+    "platform": "google",
+    "action": "google-videos",
+    "status": "SUCCESS",
+    "fail_reason": "",
+    "submit_time": 1756693797,
+    "start_time": 1756693808,
+    "finish_time": 1756693898,
+    "progress": "100%",
+    "data": {
+        "output": "https://filesystem.site/cdn/20250901/018eg2SgUpHMT6EEuQbfeRLWeUhE75.mp4"
+    },
+    "search_item": ""
+}
+
+
+失败
+{
+    "task_id": "32daf195-f961-40b5-a08d-16fe6c3a0cac",
+    "platform": "openai",
+    "action": "sora-video",
+    "status": "FAILURE",
+    "fail_reason": "输入的提示词或视频的输出内容违反了OpenAI的相关服务政策，请调整提示词后进行重试",
+    "submit_time": 1759674948,
+    "start_time": 1759674963,
+    "finish_time": 1759675403,
+    "progress": "100%",
+    "data": null,
+    "search_item": ""
+}
+
+*******
+Sora2官方格式
+创建视频
+POST
+/v1/videos
+最后修改时间：
+3 个月前
+https://platform.openai.com/docs/api-reference/videos/create
+OpenAI Sora2 官方接口，推荐接入统一格式接口；
+逆向分组和官方分组计费方式、时长设置不同
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数multipart/form-data
+model
+enum<string> 
+必需
+枚举值:
+sora-2
+sora-2-pro
+示例:
+sora-2
+prompt
+string 
+必需
+示例:
+基于这张图片生成视频
+size
+enum<string> 
+可选
+Output resolution formatted as width x height. Defaults to 720x1280.
+枚举值:
+1280x720
+720P横屏
+720x1280
+720P竖屏
+1792x1024
+1080P横屏仅 sora-2-pro 支持
+1024x1792
+1080P竖屏仅 sora-2-pro 支持
+示例:
+720x1280
+input_reference
+file 
+可选
+示例:
+https://example.com/reference.jpg
+seconds
+string 
+可选
+Clip duration in seconds. Defaults to 4 seconds.
+官方分组支持4秒以上，按秒计费
+逆向分组仅支持 10、15、25(sora-2-pro支持)
+示例:
+4
+watermark
+boolean 
+可选
+示例:
+false
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+
+var formdata = new FormData();
+formdata.append("model", "sora-2");
+formdata.append("prompt", "基于这张图片生成视频");
+formdata.append("size", "720x1280");
+formdata.append("input_reference", fileInput.files[0], "reference.jpg");
+formdata.append("seconds", "4");
+formdata.append("watermark", "false");
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: formdata,
+   redirect: 'follow'
+};
+
+fetch("/v1/videos", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+{}
+
+
+*******
+
+remix 编辑视频
+POST
+/v1/videos/{task_id}/remix
+最后修改时间：
+3 个月前
+https://platform.openai.com/docs/api-reference/videos/create
+请求参数
+Path 参数
+task_id
+string 
+必需
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+Body 参数
+application/json
+prompt
+string 
+
+{
+    "prompt": "Extend the scene with the cat taking a bow to the cheering audience"
+  }
+
+
+
+请求示例代码
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "prompt": "Extend the scene with the cat taking a bow to the cheering audience"
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/videos//remix", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+{
+    "id": "video_456",
+    "object": "video",
+    "model": "sora-2",
+    "status": "queued",
+    "progress": 0,
+    "created_at": 1712698600,
+    "size": "720x1280",
+    "seconds": "8",
+    "remixed_from_video_id": "video_123"
+}
+
+
+
+******
+ora2官方格式
+查询视频进度
+GET
+/v1/videos/{task_id}
+最后修改时间：
+3 个月前
+https://platform.openai.com/docs/api-reference/videos/create
+status ：
+queued、in_progress、completed、failed
+请求参数
+Path 参数
+task_id
+string 
+必需
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+
+var requestOptions = {
+   method: 'GET',
+   headers: myHeaders,
+   redirect: 'follow'
+};
+
+fetch("/v1/videos/", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+
+进行中
+{
+    "id": "video_b9d05dda-0f9d-48c2-944e-7c5b47c6a399",
+    "object": "video",
+    "model": "sora-2-pro",
+    "status": "queued", \\queued、in_progress、completed、failed
+    "progress": 0,
+    "created_at": 1760679942,
+    "seconds": "15",
+    "size": "1280x720",
+    "error": null,
+    "video_url": "" // 成功时，会生成视频链接，也可以通过openai 格式接口获取视频
+}
+
+失败
+{
+    "id": "sora-2:task_01k7rtn875f83t2f8ry0kb5ap1",
+    "status": "failed",
+    "created_at": 1760696116136,
+    "model": "sora-2",
+    "object": "video",
+    "progress": 0,
+    "seconds": "10",
+    "size": "small",
+    "error": {
+        "code": "generation_failed",
+        "message": "This content may violate our guardrails concerning similarity to third-party content."
+    }
+}
+
+完成
+{
+    "id": "sora-2:task_01k7rtjcjjf08b031wzan1kb5r",
+    "status": "completed",
+    "created_at": 1760696021903,
+    "model": "sora-2",
+    "object": "video",
+    "progress": 100,
+    "seconds": "15",
+    "size": "small",
+    "url": "https://filesystem.site/cdn/20251017/78fd715fed4abc9b0bbdfe564e9d8b.mp4",
+    "video_url": "https://filesystem.site/cdn/20251017/78fd715fed4abc9b0bbdfe564e9d8b.mp4"
+}
+
+
+******
+Sora2官方格式
+创建角色 Character
+POST
+/sora/v1/characters
+最后修改时间：
+1 天前
+创建角色，后续可用于 @ 调用，注意调用角色需要跟 prompt 有空格隔开
+例如：@{角色1Username} 在一个舞台上和 @{角色2Username} 牵手跳舞
+参数 url、 from_task 二选一，必须设置一个
+接口说明
+角色客串功能:
+你可以把生成的或者上传你自己的视频，把任何角色对象提取出来，加入视频中作为“客串角色”
+用户不仅能客串自己，还可以创建生活中的角色(如宠物、朋友)或纯想象的角色(如怪物、英雄、奇幻生物)
+只需上传相机里的视频(如宠物鸭子视频)，或直接生成全新角色，甚至从日常物品(如饼干罐)衍生出有趣面孔。
+任何东西都能变身客串，激发无限脑洞
+PS: 这个角色指的是物品，不是人物，人物要走 face id 录入暂不支持上传
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+Body 参数
+application/json
+timestamps
+string 
+必需
+单位秒，例如 ‘1,2’ 是指视频的1～2秒中出现的角色，注意范围差值最大 3 秒最小 1 秒
+url
+string 
+可选
+视频中包含需要创建的角色，视频必须有声音、有角色;参数 url、 from_task 二选一，必须设置一个
+from_task
+string 
+可选
+可以根据已经生成的任务 id，来创建角色;参数 url、 from_task 二选一，必须设置一个
+
+
+示例
+{
+    "url": "https://filesystem.site/cdn/20251030/javYrU4etHVFDqg8by7mViTWHlMOZy.mp4",
+    "timestamps": "1,3",
+    "from_task": "video_637efe22-3b6a-47ad-ab02-ee01a686a0bd"
+}
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "url": "https://filesystem.site/cdn/20251030/javYrU4etHVFDqg8by7mViTWHlMOZy.mp4",
+   "timestamps": "1,3",
+   "from_task": "video_637efe22-3b6a-47ad-ab02-ee01a686a0bd"
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/sora/v1/characters", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+id
+string 
+角色id
+必需
+username
+string 
+必需
+角色名称，用于放在提示词中 @{username}
+permalink
+string 
+必需
+角色主页，跳转到 openai 角色主页
+profile_picture_url
+string 
+角色头像
+必需
+
+{
+    "id": "ch_691155df38588191b3ae5f2d390a4359",
+    "username": "saparpomd.oddwingduo",
+    "permalink": "https://sora.chatgpt.com/profile/saparpomd.oddwingduo",
+    "profile_picture_url": "https://videos.openai.com/az/files/00000000-6614-71f7-b5e4-1459ba12ed5e%2Fraw?se=2025-11-14T00%3A00%3A00Z&sp=r&sv=2024-08-04&sr=b&skoid=cfbc986b-d2bc-4088-8b71-4f962129715b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-11-10T01%3A10%3A14Z&ske=2025-11-17T01%3A15%3A14Z&sks=b&skv=2024-08-04&sig=699mchlFKBCew8%2BOxBVfYr/08kVey5E3ItuznIMyGdw%3D&ac=oaisdmntprsouthcentralus"
+}
+
+
+
+

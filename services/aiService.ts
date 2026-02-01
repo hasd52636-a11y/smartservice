@@ -1,23 +1,40 @@
 
 import { KnowledgeItem, AIProvider } from "../types";
 
-// Vercel Serverless Functions API地址
+// 智谱AI API配置
 const ZHIPU_BASE_URL = '/api/zhipu';
 
-// 智谱模型类型
+// 智谱模型类型 - 基于官方API文档
 export enum ZhipuModel {
+  // 文本模型
   GLM_4_7 = 'glm-4.7',
-  GLM_4_7_FLASH = 'glm-4.7-flash',
+  GLM_4_7_FLASH = 'glm-4.7-flash', 
   GLM_4_7_FLASHX = 'glm-4.7-flashx',
   GLM_4_6 = 'glm-4.6',
+  GLM_4_5_AIR = 'glm-4.5-air',
+  GLM_4_5_AIRX = 'glm-4.5-airx',
+  GLM_4_5_FLASH = 'glm-4.5-flash',
+  
+  // 视觉模型
   GLM_4_6V = 'glm-4.6v',
   GLM_4_6V_FLASH = 'glm-4.6v-flash',
   GLM_4_6V_FLASHX = 'glm-4.6v-flashx',
+  GLM_4V_FLASH = 'glm-4v-flash',
+  AUTOGLM_PHONE = 'autoglm-phone',
+  GLM_4_1V_THINKING_FLASHX = 'glm-4.1v-thinking-flashx',
+  GLM_4_1V_THINKING_FLASH = 'glm-4.1v-thinking-flash',
+  
+  // 音频模型
   GLM_4_VOICE = 'glm-4-voice',
+  
+  // 角色模型
+  CHARGLM_4 = 'charglm-4',
+  EMOHAA = 'emohaa',
+  
+  // 其他模型
   GLM_REALTIME = 'glm-realtime-flash',
   EMBEDDING_3 = 'embedding-3',
-  EMBEDDING_2 = 'embedding-2',
-  GLM_TTS = 'glm-tts'
+  EMBEDDING_2 = 'embedding-2'
 }
 
 // 工具类型接口

@@ -1,0 +1,196 @@
+gemini-3-pro-preview-thinking-*
+令牌渠道分组
+计费类型
+模型价格
+比官方便宜72%
+默认分组-支持所有模型;GPT、Claude由逆向 + Azure组成
+提示
+$0.002/K tokens
+补全
+$0.012/K tokens
+比官方便宜58%
+Gemini 优质，支持视频分析
+提示
+$0.003/K tokens
+补全
+$0.018/K tokens
+API列表
+接口地址（共6个API）
+点击API链接查看API文档
+请求方法	稳定性
+Chat(聊天)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+Chat(分析图片)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+Chat(修改图片)
+https://api.whatai.cc/v1/chat/completions         请求方法   POST
+Chat(流式返回)
+https://api.whatai.cc/v1/chat/completions            请求方法   POST
+Chat(兼容Recraftv3)
+https://api.whatai.cc/v1/chat/completions            请求方法   POST
+Chat(分析视频)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+
+
+************
+gemini-3-flash-preview-nothinking
+Google最新的高级人工智能模型, 官方 api, 速度很快，智商和 gemini-3-pro 差不多
+模型价格
+
+显示计算倍率
+令牌渠道分组
+计费类型
+模型价格
+比官方便宜72%
+默认分组-支持所有模型;GPT、Claude由逆向 + Azure组成
+提示
+$0.0005/K tokens
+补全
+$0.003/K tokens
+比官方便宜58%
+Gemini 优质，支持视频分析
+提示
+$0.00075/K tokens
+补全
+$0.0045/K tokens
+
+
+
+接口地址（共5个API）
+点击API链接查看API文档
+请求方法	稳定性
+Chat(聊天)
+https://api.whatai.cc/v1/chat/completions     请求方法   POST
+Chat(修改图片)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+Chat(流式返回)
+https://api.whatai.cc/v1/chat/completions           请求方法   POST
+Chat(兼容Recraftv3)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+Chat(分析视频)
+https://api.whatai.cc/v1/chat/completions             请求方法   POST
+
+
+***********
+gemini-3-flash-preview
+
+
+Chat(聊天)
+https://api.whatai.cc/v1/chat/completions      请求方法   POST
+
+Chat(修改图片)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+
+Chat(流式返回)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+
+Chat(兼容Recraftv3)
+https://api.whatai.cc/v1/chat/completions           请求方法   POST
+Chat(分析视频)
+https://api.whatai.cc/v1/chat/completions       请求方法   POST
+
+
+**********
+gpt-4-all
+
+
+通过ID搜索 GPTs
+https://api.whatai.cc/v1/gpts/           请求方法   GET
+
+通过关键词搜索 GPTs
+https://api.whatai.cc/v1/gpts/search          请求方法   GET
+
+
+通过关键词搜索 GPTs V2
+https://api.whatai.cc/v2/gpts/search    请求方法   GET
+
+
+通过ID搜索 GPTs V2          
+https://api.whatai.cc/v2/gpts/{id}             请求方法   GET
+
+
+Chat(聊天)
+https://api.whatai.cc/v1/chat/completions      请求方法   POST
+
+
+Chat(分析图片)
+https://api.whatai.cc/v1/chat/completions         请求方法   POST
+Chat(修改图片)
+https://api.whatai.cc/v1/chat/completions         请求方法   POST
+
+Chat(流式返回)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+
+Chat(兼容Recraftv3)
+https://api.whatai.cc/v1/chat/completions           请求方法   POST
+
+
+**********
+gpt-4o-all
+
+GPT All模型, 集合官方GPT-4、联网、读图、绘图功能、code interpreter一体，文件链接可放 prompt 任意位置
+
+接口地址（共9个API）
+
+
+通过ID搜索 GPTs
+https://api.whatai.cc/v1/gpts/             请求方法   GET
+
+通过关键词搜索 GPTs
+https://api.whatai.cc/v1/gpts/search          请求方法   GET
+
+通过关键词搜索 GPTs V2
+https://api.whatai.cc/v2/gpts/search        请求方法   GET
+
+
+通过ID搜索 GPTs V2
+https://api.whatai.cc/v2/gpts/{id}        请求方法   GET
+
+
+Chat(聊天)
+https://api.whatai.cc/v1/chat/completions        请求方法   POST
+
+
+Chat(分析图片)
+https://api.whatai.cc/v1/chat/completions    请求方法   POST
+
+Chat(修改图片)
+https://api.whatai.cc/v1/chat/completions          请求方法   POST
+
+Chat(流式返回)
+https://api.whatai.cc/v1/chat/completions            请求方法   POST
+
+Chat(兼容Recraftv3)
+https://api.whatai.cc/v1/chat/completions        请求方法   POST
+
+************
+gpt-5-nano-2025-08-07
+
+接口地址（共8个API）
+点击API链接查看API文档
+请求方法	稳定性
+Chat(聊天)
+https://api.whatai.cc/v1/chat/completions       请求方法   POST
+
+Chat(分析图片)
+https://api.whatai.cc/v1/chat/completions       请求方法   POST
+
+Chat(修改图片)
+https://api.whatai.cc/v1/chat/completions       请求方法   POST
+
+Chat(流式返回)
+https://api.whatai.cc/v1/chat/completions       请求方法   POST
+
+Chat(兼容Recraftv3)
+https://api.whatai.cc/v1/chat/completions       请求方法   POST
+
+创建模型响应
+https://api.whatai.cc/v1/responses       请求方法   POST
+
+创建模型响应(流式返回)
+https://api.whatai.cc/v1/responses       请求方法   POST
+
+创建模型响应（调用联网
+https://api.whatai.cc/v1/responses       请求方法   POST
+
+
