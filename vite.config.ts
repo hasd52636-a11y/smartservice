@@ -34,11 +34,23 @@ export default defineConfig(({ mode }) => {
         chunkSizeWarningLimit: 1000,
         rollupOptions: {
           output: {
-            manualChunks: {
-              vendor: ['react', 'react-dom'],
-              router: ['react-router-dom'],
-              ui: ['lucide-react', 'recharts'],
-              ai: ['@google/genai']
+            manualChunks: (id) => {
+              // 只有当模块实际被使用时才创建chunk
+              if (id.includes('node_modules')) {
+                if (id.includes('react') || id.includes('react-dom')) {
+                  return 'vendor';
+                }
+                if (id.includes('react-router')) {
+                  return 'router';
+                }
+                if (id.includes('lucide-react') || id.includes('recharts')) {
+                  return 'ui';
+                }
+                if (id.includes('@google/genai')) {
+                  return 'ai';
+                }
+                return 'vendor';
+              }
             }
           }
         }
