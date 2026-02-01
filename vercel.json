@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/zhipu/(.*)",
+      "dest": "/api/zhipu/[...endpoint].js"
+    },
+    {
+      "src": "/api/ocr",
+      "dest": "/api/ocr.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "functions": {
+    "api/zhipu/[...endpoint].js": {
+      "maxDuration": 60
+    },
+    "api/ocr.js": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

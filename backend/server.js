@@ -71,27 +71,12 @@ app.post('/api/zhipu/*', async (req, res) => {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      data: req.body,
-      responseType: 'stream'
+      data: req.body
     });
 
-    // 检查是否是SSE流式响应
-    if (response.headers['content-type']?.includes('text/event-stream')) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      
-      // 流式传输响应
-      response.data.pipe(res);
-      
-      response.data.on('end', () => {
-        res.end();
-      });
-    } else {
-      // 非流式响应
-      const data = await response.data;
-      res.json(data);
-    }
+    // 直接返回JSON响应
+    res.json(response.data);
+    
   } catch (error) {
     console.error('Zhipu API proxy error:', error.response?.data || error.message);
     res.status(error.response?.status || 500).json({

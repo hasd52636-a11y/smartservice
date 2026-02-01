@@ -218,6 +218,9 @@
             const savedApiKey = localStorage.getItem('zhipuApiKey');
             if (savedApiKey) {
                 document.getElementById('apiKey').value = savedApiKey;
+            } else {
+                // 使用提供的真实API密钥进行测试
+                document.getElementById('apiKey').value = 'a75d46768b0f45dc90a5969077ffc8d9.dT0t2tku3hZGfYkk';
             }
         };
     </script>

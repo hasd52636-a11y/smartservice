@@ -399,12 +399,26 @@ export class AIService {
 
       // 仅使用智谱AI实现，启用智能路由
       const optimalModel = this.getOptimalModel(prompt, options);
-      const requestBody = {
-        model: optimalModel,
-        messages: [
+      
+      // 根据模型类型构建不同的消息格式
+      let messages;
+      if (optimalModel === ZhipuModel.GLM_4_VOICE) {
+        // GLM-4-Voice 需要特殊的消息格式
+        messages = [
+          { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
+          { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
+        ];
+      } else {
+        // 普通文本模型
+        messages = [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: fullPrompt }
-        ],
+        ];
+      }
+      
+      const requestBody = {
+        model: optimalModel,
+        messages: messages,
         temperature: options?.temperature || 0.1,
         max_tokens: options?.maxTokens || 1024,
         stream: options?.stream || false,
@@ -457,12 +471,26 @@ export class AIService {
 4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
       const optimalModel = this.getOptimalModel(prompt, options);
-      const requestBody = {
-        model: optimalModel,
-        messages: [
+      
+      // 根据模型类型构建不同的消息格式
+      let messages;
+      if (optimalModel === ZhipuModel.GLM_4_VOICE) {
+        // GLM-4-Voice 需要特殊的消息格式
+        messages = [
+          { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
+          { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
+        ];
+      } else {
+        // 普通文本模型
+        messages = [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: fullPrompt }
-        ],
+        ];
+      }
+      
+      const requestBody = {
+        model: optimalModel,
+        messages: messages,
         temperature: options?.temperature || 0.1,
         max_tokens: options?.maxTokens || 1024,
         stream: options?.stream || false,
@@ -1262,17 +1290,26 @@ export class AIService {
     if (this.zhipuApiKey) {
       return this.zhipuApiKey;
     }
-    // 从localStorage获取
+    
+    // 从环境变量获取（Vite暴露的环境变量）
+    if (typeof process !== 'undefined' && process.env?.ZHIPU_API_KEY) {
+      this.zhipuApiKey = process.env.ZHIPU_API_KEY;
+      return this.zhipuApiKey;
+    }
+    
+    // 从localStorage获取（用户手动设置）
     const savedKey = localStorage.getItem('zhipuApiKey');
     if (savedKey) {
       this.zhipuApiKey = savedKey;
       return savedKey;
     }
-    // 从环境变量获取（如果在浏览器环境中可用）
+    
+    // 从window全局变量获取（备用方案）
     if (typeof window !== 'undefined' && (window as any).ZHIPU_API_KEY) {
       this.zhipuApiKey = (window as any).ZHIPU_API_KEY;
       return this.zhipuApiKey;
     }
+    
     return '';
   }
 }
