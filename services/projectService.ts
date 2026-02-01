@@ -18,7 +18,13 @@ class ProjectService {
 
   // 初始化默认项目数据（模拟服务端预置数据）
   private initializeDefaultProjects() {
-    const defaultProjects: ProductProject[] = [
+    // 先尝试从localStorage加载
+    this.loadFromLocalStorage();
+    
+    // 如果没有项目数据，创建默认项目
+    if (this.projects.size === 0) {
+      console.log('初始化默认项目数据...');
+      const defaultProjects: ProductProject[] = [
       {
         id: 'p1',
         name: '测试项目',
@@ -144,11 +150,14 @@ class ProjectService {
       this.projects.set(project.id, project);
     });
 
-    // 同时从localStorage加载商家创建的项目
-    this.loadProjectsFromLocalStorage();
+    // 同步到localStorage
+    this.syncToLocalStorage();
     
     // 为默认项目生成扫码链接（如果还没有的话）
     this.initializeProjectLinks();
+    
+    console.log(`初始化完成，共加载 ${this.projects.size} 个项目`);
+    }
   }
 
   // 为项目初始化扫码链接
@@ -167,6 +176,32 @@ class ProjectService {
     }).catch(error => {
       console.error('Failed to initialize project links:', error);
     });
+  }
+
+  // 从localStorage加载项目数据
+  private loadFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem('smartguide_projects');
+      if (saved) {
+        const parsed = JSON.parse(saved) as ProductProject[];
+        console.log(`从localStorage加载了 ${parsed.length} 个项目`);
+        parsed.forEach(project => {
+          // 确保项目配置完整
+          const completeProject = {
+            ...project,
+            config: {
+              provider: AIProvider.ZHIPU,
+              videoGuides: [],
+              ...project.config
+            },
+            knowledgeBase: project.knowledgeBase || []
+          };
+          this.projects.set(project.id, completeProject);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load projects from localStorage:', error);
+    }
   }
 
   // 从localStorage加载商家创建的项目

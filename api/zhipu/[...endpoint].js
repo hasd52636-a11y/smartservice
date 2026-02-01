@@ -123,7 +123,7 @@ module.exports = async (req, res) => {
       await handleStreamingResponse(response, res);
     } else {
       console.log('Zhipu API response data:', JSON.stringify(response.data, null, 2));
-      res.json(response.data);
+      res.status(response.status || 200).json(response.data);
     }
 
   } catch (error) {
