@@ -119,8 +119,26 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
   };
 
   const handleSetProductionDomain = async () => {
-    const productionUrl = 'https://sora.wboke.com';
+    // 自动检测当前部署的域名
+    const currentHost = window.location.hostname;
+    let productionUrl;
+    
+    if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+      // 本地开发环境，使用Vercel部署域名
+      productionUrl = 'https://smartservice-dyp5.vercel.app';
+    } else {
+      // 生产环境，使用当前域名
+      const protocol = window.location.protocol;
+      const port = window.location.port;
+      productionUrl = `${protocol}//${currentHost}`;
+      if (port && port !== '80' && port !== '443') {
+        productionUrl += `:${port}`;
+      }
+    }
+    
     console.log('=== 设置生产环境域名 ===');
+    console.log('检测到的域名:', productionUrl);
+    
     try {
       const { linkService } = await import('../services/linkService');
       linkService.setBaseUrl(productionUrl);

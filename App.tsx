@@ -334,11 +334,11 @@ const App: React.FC = () => {
   // 初始化链接服务的域名设置
   useEffect(() => {
     const initializeLinkService = () => {
-      // 检查当前域名，如果是生产环境则设置正确的基础URL
+      // 检查当前域名，自动设置正确的基础URL
       const currentHost = window.location.hostname;
       
       if (currentHost === 'sora.wboke.com') {
-        console.log('检测到生产环境，设置基础URL为: https://sora.wboke.com');
+        console.log('检测到sora.wboke.com域名，设置基础URL为: https://sora.wboke.com');
         linkService.setBaseUrl('https://sora.wboke.com');
       } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
         console.log('检测到本地开发环境');
@@ -352,6 +352,7 @@ const App: React.FC = () => {
         if (port && port !== '80' && port !== '443') {
           baseUrl += `:${port}`;
         }
+        console.log('自动设置基础URL为:', baseUrl);
         linkService.setBaseUrl(baseUrl);
       }
     };
