@@ -31,15 +31,24 @@ const Diagnostics: React.FC = () => {
     });
     setResults([...diagnostics]);
 
-    const apiKey = localStorage.getItem('zhipuApiKey');
-    if (apiKey) {
+    // 检查API密钥（localStorage 或 环境变量）
+    const localApiKey = localStorage.getItem('zhipuApiKey');
+    const envApiKey = aiService.getZhipuApiKey(); // 这会检查环境变量
+    
+    if (localApiKey || envApiKey) {
       try {
-        aiService.setZhipuApiKey(apiKey);
+        if (localApiKey) {
+          aiService.setZhipuApiKey(localApiKey);
+        }
+        // 如果没有localStorage密钥，aiService会自动使用环境变量
+        
         const testResult = await aiService.testZhipuConnection();
         diagnostics[0] = {
           name: 'API密钥配置',
           status: testResult.success ? 'success' : 'error',
-          message: testResult.success ? '✅ API密钥有效，连接正常' : `❌ ${testResult.message}`,
+          message: testResult.success 
+            ? `✅ API密钥有效，连接正常 ${localApiKey ? '(localStorage)' : '(环境变量)'}` 
+            : `❌ ${testResult.message}`,
           action: !testResult.success ? () => window.open('/admin/settings', '_blank') : undefined,
           actionText: '去配置'
         };
@@ -56,7 +65,7 @@ const Diagnostics: React.FC = () => {
       diagnostics[0] = {
         name: 'API密钥配置',
         status: 'error',
-        message: '❌ 未配置智谱AI密钥',
+        message: '❌ 未配置智谱AI密钥（localStorage和环境变量都为空）',
         action: () => window.open('/admin/settings', '_blank'),
         actionText: '去配置'
       };
