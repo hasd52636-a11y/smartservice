@@ -7,6 +7,10 @@
       "config": {
         "distDir": "dist"
       }
+    },
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -36,5 +40,13 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/zhipu/[...endpoint].js": {
+      "maxDuration": 60
+    },
+    "api/ocr.js": {
+      "maxDuration": 30
+    }
+  }
 }
