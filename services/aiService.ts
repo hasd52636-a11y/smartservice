@@ -4,40 +4,73 @@ import { KnowledgeItem, AIProvider } from "../types";
 // 智谱AI API配置
 const ZHIPU_BASE_URL = '/api/zhipu';
 
-// 智谱模型类型 - 基于官方API文档
+// 智谱模型类型 - 基于官方API文档，保持简洁
 export enum ZhipuModel {
-  // 文本模型
-  GLM_4_7 = 'glm-4.7',
-  GLM_4_7_FLASH = 'glm-4.7-flash', 
-  GLM_4_7_FLASHX = 'glm-4.7-flashx',
-  GLM_4_6 = 'glm-4.6',
-  GLM_4_5_AIR = 'glm-4.5-air',
-  GLM_4_5_AIRX = 'glm-4.5-airx',
-  GLM_4_5_FLASH = 'glm-4.5-flash',
+  // 主力文本模型
+  GLM_4_7 = 'glm-4.7',                    // 最新旗舰模型（默认）
+  GLM_4_6 = 'glm-4.6',                    // 高性价比选择
+  GLM_4_5_FLASH = 'glm-4.5-flash',        // 免费模型
   
   // 视觉模型
-  GLM_4_6V = 'glm-4.6v',
-  GLM_4_6V_FLASH = 'glm-4.6v-flash',
-  GLM_4_6V_FLASHX = 'glm-4.6v-flashx',
-  GLM_4V_FLASH = 'glm-4v-flash',
-  AUTOGLM_PHONE = 'autoglm-phone',
-  GLM_4_1V_THINKING_FLASHX = 'glm-4.1v-thinking-flashx',
-  GLM_4_1V_THINKING_FLASH = 'glm-4.1v-thinking-flash',
+  GLM_4_6V = 'glm-4.6v',                  // 主力视觉模型
   
   // 音频模型
-  GLM_4_VOICE = 'glm-4-voice',
+  GLM_4_VOICE = 'glm-4-voice',            // 语音模型
   
-  // 角色模型
-  CHARGLM_4 = 'charglm-4',
-  EMOHAA = 'emohaa',
+  // 向量模型
+  EMBEDDING_3 = 'embedding-3',            // 向量化模型
   
-  // 其他模型
-  GLM_REALTIME = 'glm-realtime-flash',
-  EMBEDDING_3 = 'embedding-3',
-  EMBEDDING_2 = 'embedding-2'
+  // 实时模型
+  GLM_REALTIME = 'glm-realtime-flash',    // 实时交互
 }
 
-// 工具类型接口
+// 智能路由配置 - 根据任务类型自动选择最优模型
+export interface SmartRoutingConfig {
+  textChat: string;           // 文本对话
+  codeGeneration: string;     // 代码生成
+  imageAnalysis: string;      // 图片分析
+  voiceInteraction: string;   // 语音交互
+  embedding: string;          // 向量化
+  realtime: string;          // 实时交互
+  rolePlay: string;          // 角色扮演
+  thinking: string;          // 深度思考
+}
+
+// 默认智能路由配置 - 基于最新模型性能和成本优化
+export const DEFAULT_SMART_ROUTING: SmartRoutingConfig = {
+  textChat: ZhipuModel.GLM_4_7,              // 最新旗舰模型，最佳对话体验
+  codeGeneration: ZhipuModel.GLM_4_7,        // Agentic Coding 专用优化
+  imageAnalysis: ZhipuModel.GLM_4_6V,        // 最强视觉理解能力
+  voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 专业语音模型
+  embedding: ZhipuModel.EMBEDDING_3,         // 最新向量模型
+  realtime: ZhipuModel.GLM_REALTIME,         // 实时交互专用
+  rolePlay: ZhipuModel.GLM_4_7,           // 使用通用模型
+  thinking: ZhipuModel.GLM_4_7,             // 支持思考模式
+};
+
+// 高性价比路由配置 - 成本优化版本
+export const COST_OPTIMIZED_ROUTING: SmartRoutingConfig = {
+  textChat: ZhipuModel.GLM_4_5_FLASH,        // 免费高效
+  codeGeneration: ZhipuModel.GLM_4_6,        // 高性价比编码
+  imageAnalysis: ZhipuModel.GLM_4_6V,  // 视觉分析
+  voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 语音专用
+  embedding: ZhipuModel.EMBEDDING_3,         // 向量化
+  realtime: ZhipuModel.GLM_REALTIME,     // 实时交互
+  rolePlay: ZhipuModel.GLM_4_5_FLASH,       // 通用模型
+  thinking: ZhipuModel.GLM_4_6,             // 思考能力
+};
+
+// 任务类型检测
+export enum TaskType {
+  TEXT_CHAT = 'textChat',
+  CODE_GENERATION = 'codeGeneration', 
+  IMAGE_ANALYSIS = 'imageAnalysis',
+  VOICE_INTERACTION = 'voiceInteraction',
+  EMBEDDING = 'embedding',
+  REALTIME = 'realtime',
+  ROLE_PLAY = 'rolePlay',
+  THINKING = 'thinking'
+}
 export interface FunctionTool {
   type: 'function';
   function: {
@@ -83,26 +116,65 @@ export class AIService {
   private isRealtimeConnected: boolean = false;
   private zhipuApiKey: string = '';
 
+  // 简单的智能路由 - 根据内容自动选择模型
+  private getOptimalModel(prompt: string, options?: any): string {
+    // 如果用户指定了模型，优先使用
+    if (options?.model) {
+      return options.model;
+    }
+    
+    const lowerPrompt = prompt.toLowerCase();
+    
+    // 图片分析 -> 视觉模型
+    if (options?.imageUrl || options?.imageBuffer || 
+        lowerPrompt.includes('图片') || lowerPrompt.includes('image')) {
+      return ZhipuModel.GLM_4_6V;
+    }
+    
+    // 语音相关 -> 语音模型
+    if (options?.audioData || lowerPrompt.includes('语音') || lowerPrompt.includes('voice')) {
+      return ZhipuModel.GLM_4_VOICE;
+    }
+    
+    // 默认使用最新旗舰模型
+    return ZhipuModel.GLM_4_7;
+  }
+
   private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false) {
     try {
-      if (!this.zhipuApiKey) {
+      // 获取API密钥
+      const apiKey = this.getZhipuApiKey();
+      if (!apiKey) {
         throw new Error('智谱AI API密钥未设置，请先配置API密钥');
       }
+
+      console.log('Making Zhipu API request to:', `${ZHIPU_BASE_URL}${endpoint}`);
+      console.log('Request body:', JSON.stringify(body, null, 2));
 
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.zhipuApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
         let errorMessage = 'Zhipu API Error';
+        let errorData = null;
         try {
-          const err = await response.json();
-          errorMessage = err?.error?.message || err?.message || errorMessage;
+          const errorText = await response.text();
+          console.error('Error response text:', errorText);
+          try {
+            errorData = JSON.parse(errorText);
+            errorMessage = errorData?.error?.message || errorData?.message || errorMessage;
+          } catch (jsonError) {
+            errorMessage = errorText || errorMessage;
+          }
         } catch (parseError) {
           console.error('Error parsing error response:', parseError);
         }
@@ -119,26 +191,40 @@ export class AIService {
   // 智谱流式请求
   private async zhipuStreamFetch(endpoint: string, body: any, callback: StreamCallback) {
     try {
-      if (!this.zhipuApiKey) {
+      // 获取API密钥
+      const apiKey = this.getZhipuApiKey();
+      if (!apiKey) {
         throw new Error('智谱AI API密钥未设置，请先配置API密钥');
       }
+
+      console.log('Making Zhipu API stream request to:', `${ZHIPU_BASE_URL}${endpoint}`);
+      console.log('Request body:', JSON.stringify(body, null, 2));
 
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.zhipuApiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
       });
 
+      console.log('Stream response status:', response.status);
+
       if (!response.ok) {
         let errorMessage = 'Zhipu API Error';
+        let errorData = null;
         try {
-          const err = await response.json();
-          errorMessage = err?.error?.message || err?.message || errorMessage;
+          const errorText = await response.text();
+          console.error('Stream error response text:', errorText);
+          try {
+            errorData = JSON.parse(errorText);
+            errorMessage = errorData?.error?.message || errorData?.message || errorMessage;
+          } catch (jsonError) {
+            errorMessage = errorText || errorMessage;
+          }
         } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
+          console.error('Error parsing stream error response:', parseError);
         }
         throw new Error(`${errorMessage} (${response.status})`);
       }
@@ -311,9 +397,10 @@ export class AIService {
 3. **Cite the source** of your information by referencing the knowledge item number
 4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
-      // 仅使用智谱AI实现
+      // 仅使用智谱AI实现，启用智能路由
+      const optimalModel = this.getOptimalModel(prompt, options);
       const requestBody = {
-        model: options?.model || 'glm-4.7',
+        model: optimalModel,
         messages: [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: fullPrompt }
@@ -369,8 +456,9 @@ export class AIService {
 3. **Cite the source** of your information by referencing the knowledge item number
 4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
+      const optimalModel = this.getOptimalModel(prompt, options);
       const requestBody = {
-        model: options?.model || 'glm-4.7',
+        model: optimalModel,
         messages: [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: fullPrompt }
@@ -462,6 +550,14 @@ export class AIService {
   // 测试智谱API连接
   async testZhipuConnection(): Promise<{ success: boolean; message: string }> {
     try {
+      const apiKey = this.getZhipuApiKey();
+      if (!apiKey) {
+        return { 
+          success: false, 
+          message: '请先配置智谱AI API密钥' 
+        };
+      }
+
       const data = await this.zhipuFetch('/chat/completions', {
         model: 'glm-4.7',
         messages: [
@@ -472,12 +568,24 @@ export class AIService {
       });
       return { 
         success: true, 
-        message: `Connected to Zhipu AI (${data.model})` 
+        message: `连接成功！模型: ${data.model || 'glm-4.7'}` 
       };
     } catch (error) {
+      let errorMessage = '连接失败';
+      if (error instanceof Error) {
+        if (error.message.includes('1002')) {
+          errorMessage = 'API密钥无效，请检查密钥是否正确';
+        } else if (error.message.includes('1001')) {
+          errorMessage = '请先配置API密钥';
+        } else if (error.message.includes('404')) {
+          errorMessage = 'API端点不存在，请检查网络连接';
+        } else {
+          errorMessage = error.message;
+        }
+      }
       return { 
         success: false, 
-        message: error instanceof Error ? error.message : 'Connection failed' 
+        message: errorMessage
       };
     }
   }

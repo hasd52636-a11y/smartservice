@@ -4,7 +4,14 @@ const axios = require('axios');
 const ZHIPU_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 
 // 获取API密钥
-function getApiKey() {
+function getApiKey(req) {
+  // 优先从请求头获取
+  const authHeader = req?.headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+  
+  // 从环境变量获取
   return process.env.ZHIPU_API_KEY || process.env.API_KEY || '';
 }
 
@@ -53,7 +60,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const apiKey = getApiKey();
+    const apiKey = getApiKey(req);
     if (!apiKey) {
       return res.status(401).json({ 
         error: {
@@ -69,9 +76,16 @@ module.exports = async (req, res) => {
     // 构建智谱AI API URL
     const url = `${ZHIPU_BASE_URL}/${endpointPath}`;
     
+    console.log('=== Zhipu API Proxy Debug ===');
     console.log('Proxying request to Zhipu AI:', url);
     console.log('Request method:', req.method);
+    console.log('Endpoint path:', endpointPath);
+    console.log('Full endpoint array:', endpoint);
+    console.log('Request headers:', JSON.stringify(req.headers, null, 2));
     console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('API Key present:', !!apiKey);
+    console.log('API Key length:', apiKey ? apiKey.length : 0);
+    console.log('================================');
     
     // 设置请求头 - 按照智谱AI API规范
     const headers = {
@@ -90,7 +104,15 @@ module.exports = async (req, res) => {
       responseType: req.body?.stream ? 'stream' : 'json'
     };
 
+    console.log('Axios config:', JSON.stringify({
+      ...axiosConfig,
+      headers: { ...axiosConfig.headers, Authorization: 'Bearer [HIDDEN]' }
+    }, null, 2));
+
     const response = await axios(axiosConfig);
+
+    console.log('Zhipu API response status:', response.status);
+    console.log('Zhipu API response headers:', JSON.stringify(response.headers, null, 2));
 
     // 设置CORS头
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -100,11 +122,14 @@ module.exports = async (req, res) => {
     if (req.body?.stream && response.headers['content-type']?.includes('text/event-stream')) {
       await handleStreamingResponse(response, res);
     } else {
+      console.log('Zhipu API response data:', JSON.stringify(response.data, null, 2));
       res.json(response.data);
     }
 
   } catch (error) {
-    console.error('Zhipu AI API proxy error:', error.message);
+    console.error('=== Zhipu API Proxy Error ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     
     // 设置CORS头
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -161,5 +186,7 @@ module.exports = async (req, res) => {
       errorResponse.error.message = error.message;
       res.status(500).json(errorResponse);
     }
+    
+    console.error('===============================');
   }
 };

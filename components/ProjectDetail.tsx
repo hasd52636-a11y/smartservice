@@ -561,6 +561,67 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
 
           {activeTab === 'config' && (
             <div className="space-y-8">
+              {/* API 密钥配置 */}
+              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                  <ShieldCheck className="text-emerald-600" size={28} />
+                  API 密钥配置
+                </h3>
+                
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">
+                      智谱AI API密钥 (Zhipu AI API Key)
+                    </label>
+                    <div className="flex gap-3">
+                      <input
+                        type="password"
+                        placeholder="请输入您的智谱AI API密钥..."
+                        className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                        onChange={(e) => {
+                          const apiKey = e.target.value;
+                          if (apiKey) {
+                            aiService.setZhipuApiKey(apiKey);
+                            setApiKeyStatus({hasKey: true, checked: true});
+                          } else {
+                            localStorage.removeItem('zhipuApiKey');
+                            setApiKeyStatus({hasKey: false, checked: true});
+                          }
+                        }}
+                        defaultValue={localStorage.getItem('zhipuApiKey') || ''}
+                      />
+                      <button
+                        onClick={async () => {
+                          const result = await aiService.testZhipuConnection();
+                          alert(result.success ? `✅ ${result.message}` : `❌ ${result.message}`);
+                        }}
+                        className="px-6 py-3 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors font-medium"
+                      >
+                        测试连接
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                      {apiKeyStatus.checked && (
+                        <>
+                          {apiKeyStatus.hasKey ? (
+                            <CheckCircle className="text-emerald-500" size={16} />
+                          ) : (
+                            <X className="text-red-500" size={16} />
+                          )}
+                          <span className={`text-xs font-medium ${apiKeyStatus.hasKey ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {apiKeyStatus.hasKey ? 'API密钥已配置' : 'API密钥未配置'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">
+                      请在 <a href="https://bigmodel.cn/usercenter/proj-mgmt/apikeys" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">智谱AI控制台</a> 获取您的API密钥。
+                      密钥将安全保存在本地浏览器中。
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* AI 系统配置 */}
               <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
                 <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
