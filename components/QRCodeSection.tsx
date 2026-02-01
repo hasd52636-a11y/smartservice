@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Download, ExternalLink, CheckCircle, ArrowRight, 
-  Globe, MessageSquare 
+  Globe, MessageSquare, Copy
 } from 'lucide-react';
 
 interface QRCodeSectionProps {
@@ -118,32 +118,91 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
     }
   };
 
-  const handleSetProductionDomain = async () => {
-    // 自动检测当前部署的域名
-    const currentHost = window.location.hostname;
-    let productionUrl;
+  // 获取保存的生产域名
+  const getSavedProductionDomain = (): string | null => {
+    return localStorage.getItem('productionDomain');
+  };
+
+  // 保存生产域名
+  const saveProductionDomain = (domain: string): void => {
+    localStorage.setItem('productionDomain', domain);
+  };
+
+  // 获取当前使用的域名（显示用）
+  const getCurrentDomain = (): string => {
+    const saved = getSavedProductionDomain();
+    if (saved) return saved;
     
-    if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
-      // 本地开发环境，使用Vercel部署域名
-      productionUrl = 'https://smartservice-dyp5.vercel.app';
-    } else {
-      // 生产环境，使用当前域名
-      const protocol = window.location.protocol;
-      const port = window.location.port;
-      productionUrl = `${protocol}//${currentHost}`;
-      if (port && port !== '80' && port !== '443') {
-        productionUrl += `:${port}`;
+    const currentHost = window.location.hostname;
+    return `${window.location.protocol}//${currentHost}`;
+  };
+
+  const handleSetProductionDomain = async () => {
+    console.log('=== 设置生产环境域名 ===');
+    
+    // 预设的域名选项（包括当前检测到的域名）
+    const currentHost = window.location.hostname;
+    const currentUrl = `${window.location.protocol}//${currentHost}`;
+    
+    const domainOptions = [
+      'https://sora.wboke.com',
+      'https://smartservice-dyp5.vercel.app',
+      currentUrl, // 当前访问的域名
+      '自定义域名'
+    ];
+    
+    // 去重
+    const uniqueDomains = [...new Set(domainOptions)];
+    
+    // 显示当前设置
+    const currentDomain = getCurrentDomain();
+    
+    // 构建选择提示
+    let message = `当前生产域名：${currentDomain}\n\n`;
+    message += '请选择要设置的生产环境域名：\n\n';
+    uniqueDomains.forEach((domain, index) => {
+      if (domain !== '自定义域名') {
+        const isCurrent = domain === currentDomain ? ' ✓ 当前' : '';
+        message += `${index + 1}. ${domain}${isCurrent}\n`;
       }
+    });
+    message += `${uniqueDomains.length}. 自定义域名（手动输入）\n\n`;
+    message += '请输入数字选择：';
+    
+    const choice = prompt(message);
+    
+    if (!choice) return; // 用户取消
+    
+    const choiceIndex = parseInt(choice) - 1;
+    let selectedDomain;
+    
+    if (choiceIndex >= 0 && choiceIndex < uniqueDomains.length - 1) {
+      // 选择预设域名
+      selectedDomain = uniqueDomains[choiceIndex];
+    } else if (choiceIndex === uniqueDomains.length - 1) {
+      // 选择自定义域名
+      selectedDomain = prompt('请输入自定义域名（包含 https://）：\n\n例如：https://your-domain.com');
+      if (!selectedDomain) return;
+      
+      // 验证域名格式
+      if (!selectedDomain.startsWith('http://') && !selectedDomain.startsWith('https://')) {
+        alert('❌ 域名格式错误！\n\n请包含协议（http:// 或 https://）');
+        return;
+      }
+    } else {
+      alert('❌ 选择无效，请重新操作');
+      return;
     }
     
-    console.log('=== 设置生产环境域名 ===');
-    console.log('检测到的域名:', productionUrl);
-    
     try {
-      const { linkService } = await import('../services/linkService');
-      linkService.setBaseUrl(productionUrl);
+      // 保存到localStorage
+      saveProductionDomain(selectedDomain);
       
-      alert('✅ 已设置生产环境域名！\n\n域名: ' + productionUrl + '\n\n所有链接已重新生成，请刷新页面查看。');
+      // 设置到linkService
+      const { linkService } = await import('../services/linkService');
+      linkService.setBaseUrl(selectedDomain);
+      
+      alert(`✅ 已保存生产环境域名！\n\n域名: ${selectedDomain}\n\n设置已保存，所有链接已重新生成。\n请刷新页面查看。`);
       window.location.reload();
     } catch (error) {
       console.error('设置域名失败:', error);
@@ -214,7 +273,29 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
             <summary className="cursor-pointer text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors">
               高级操作 ▼
             </summary>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            
+            {/* 当前域名显示 */}
+            <div className="mt-4 mb-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <div className="text-xs font-bold text-slate-500 mb-1">当前生产域名</div>
+              <div className="text-sm font-mono text-slate-800 break-all mb-2">
+                {getCurrentDomain()}
+              </div>
+              <button 
+                onClick={() => {
+                  const current = getCurrentDomain();
+                  navigator.clipboard.writeText(current).then(() => {
+                    alert('✅ 域名已复制到剪贴板！');
+                  }).catch(() => {
+                    prompt('请手动复制域名：', current);
+                  });
+                }}
+                className="px-3 py-1 bg-slate-500 text-white font-bold rounded-lg text-xs flex items-center gap-1"
+              >
+                <Copy size={12}/> 复制域名
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button 
                 onClick={handleTestLink}
                 className="px-4 py-2 bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2"
@@ -233,7 +314,7 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
                 onClick={handleSetProductionDomain}
                 className="px-4 py-2 bg-purple-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2"
               >
-                <Globe size={16}/> 设置生产域名
+                <Globe size={16}/> 选择生产域名
               </button>
               
               <button 

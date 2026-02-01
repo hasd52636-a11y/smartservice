@@ -334,6 +334,14 @@ const App: React.FC = () => {
   // 初始化链接服务的域名设置
   useEffect(() => {
     const initializeLinkService = () => {
+      // 优先使用保存的生产域名
+      const savedDomain = localStorage.getItem('productionDomain');
+      if (savedDomain) {
+        console.log('使用保存的生产域名:', savedDomain);
+        linkService.setBaseUrl(savedDomain);
+        return;
+      }
+      
       // 检查当前域名，自动设置正确的基础URL
       const currentHost = window.location.hostname;
       
