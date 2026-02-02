@@ -286,10 +286,10 @@ export class AIService {
             
             for (const line of lines) {
               if (line.startsWith('data: ')) {
-                const data = line.substring(6);
+                const data = line.substring(6).trim();
                 if (data === '[DONE]') {
                   callback('', true, 'stop');
-                } else {
+                } else if (data) {
                   try {
                     const parsed = JSON.parse(data);
                     const content = parsed.choices[0]?.delta?.content || '';
@@ -300,7 +300,8 @@ export class AIService {
                       callback('', true, parsed.choices[0].finish_reason);
                     }
                   } catch (error) {
-                    console.error('Error parsing SSE chunk:', error);
+                    // 忽略JSON解析错误，可能是不完整的数据块
+                    console.warn('Skipping malformed SSE chunk:', data.substring(0, 100));
                   }
                 }
               }

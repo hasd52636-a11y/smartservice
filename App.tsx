@@ -50,6 +50,7 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
       console.log('=== 扫码链接处理开始 ===');
       console.log('shortCode:', shortCode);
       console.log('当前URL:', window.location.href);
+      console.log('User Agent:', navigator.userAgent);
       
       if (!shortCode) {
         console.log('shortCode为空，显示错误');
@@ -62,29 +63,60 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
         setLoading(true);
         setError('');
         
-        // 等待服务初始化完成
-        console.log('等待服务初始化...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // 强制初始化项目服务
+        // 强制初始化项目服务（确保数据加载）
         console.log('强制初始化项目服务...');
         const allProjects = await projectService.getAllProjects();
         console.log('项目服务初始化完成，项目数量:', allProjects.length);
         
-        // 检查linkService的状态
-        console.log('linkService状态检查:');
-        console.log('开始查找shortCode对应的项目ID');
+        // 等待linkService完全初始化
+        console.log('等待linkService初始化...');
+        let retryCount = 0;
+        let projectId = null;
         
-        // 根据shortCode获取对应的项目ID
-        console.log('查找shortCode对应的项目ID...');
-        const id = linkService.getProjectIdByShortCode(shortCode);
-        console.log('找到的项目ID:', id);
+        while (retryCount < 10 && !projectId) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // 尝试查找项目ID
+          projectId = linkService.getProjectIdByShortCode(shortCode);
+          console.log(`尝试 ${retryCount + 1}: 找到的项目ID:`, projectId);
+          
+          if (!projectId) {
+            // 如果没找到，强制重新生成所有项目的链接
+            console.log('未找到项目映射，强制重新生成链接...');
+            for (const project of allProjects) {
+              linkService.generateLinksForProject(project.id);
+            }
+          }
+          
+          retryCount++;
+        }
         
-        if (id) {
+        if (projectId) {
           // 验证项目是否存在且可用
-          console.log('验证项目:', id);
-          const validation = await projectService.validateProjectId(id);
+          console.log('验证项目:', projectId);
+          const validation = await projectService.validateProjectId(projectId);
           console.log('项目验证结果:', validation);
+          
+          if (validation.valid && validation.project) {
+            console.log('项目验证成功，直接渲染用户界面');
+            setProjectId(projectId);
+            setLoading(false);
+          } else {
+            console.log('项目验证失败:', validation.error);
+            setError(validation.error || '项目不可用');
+            setLoading(false);
+          }
+        } else {
+          console.log('重试后仍未找到对应的项目');
+          setError('二维码无效或已过期，请联系客服');
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('链接处理失败:', error);
+        setError('服务初始化失败，请刷新重试');
+        setLoading(false);
+      }
+    };
           
           if (validation.valid && validation.project) {
             console.log('项目验证成功，直接渲染用户界面');
