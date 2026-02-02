@@ -2,7 +2,7 @@
 import { KnowledgeItem, AIProvider } from "../types";
 
 // 智谱AI API配置
-const ZHIPU_BASE_URL = '/api/zhipu';
+const ZHIPU_BASE_URL = '/api/zhipu'
 
 // 智谱模型类型 - 基于官方API文档，保持简洁
 export enum ZhipuModel {

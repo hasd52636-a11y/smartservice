@@ -70,8 +70,31 @@ module.exports = async (req, res) => {
       });
     }
 
-    const { endpoint } = req.query;
-    const endpointPath = Array.isArray(endpoint) ? endpoint.join('/') : endpoint;
+    // 从请求URL中提取endpoint参数
+    let endpointPath = req.query.endpoint;
+    if (Array.isArray(endpointPath)) {
+      endpointPath = endpointPath.join('/');
+    }
+    
+    // 如果endpointPath仍然是undefined，尝试从请求URL中提取
+    if (!endpointPath) {
+      // 从请求路径中提取，去掉/api/zhipu前缀
+      const urlPath = req.url;
+      const pathMatch = urlPath.match(/\/api\/zhipu\/(.*)/);
+      if (pathMatch && pathMatch[1]) {
+        endpointPath = pathMatch[1].split('?')[0]; // 去掉查询参数
+      }
+    }
+    
+    // 检查endpointPath是否存在
+    if (!endpointPath) {
+      return res.status(400).json({
+        error: {
+          code: '1003',
+          message: 'Endpoint路径参数缺失，请提供有效的API端点路径'
+        }
+      });
+    }
     
     // 构建智谱AI API URL
     const url = `${ZHIPU_BASE_URL}/${endpointPath}`;
@@ -80,7 +103,6 @@ module.exports = async (req, res) => {
     console.log('Proxying request to Zhipu AI:', url);
     console.log('Request method:', req.method);
     console.log('Endpoint path:', endpointPath);
-    console.log('Full endpoint array:', endpoint);
     console.log('Request headers:', JSON.stringify(req.headers, null, 2));
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     console.log('API Key present:', !!apiKey);
