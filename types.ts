@@ -49,6 +49,13 @@ export interface ProjectConfig {
   videoChatPrompt: string;
   avatarEnabled: boolean;
   annotationEnabled: boolean;
+  // 联系信息配置
+  supportPhone?: string;
+  supportWebsite?: string;
+  companyName?: string;
+  wechatAccount?: string;
+  // 欢迎语配置
+  welcomeMessage?: string;
 }
 
 export interface ProductProject {

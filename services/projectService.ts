@@ -23,7 +23,6 @@ class ProjectService {
     
     // 如果没有项目数据，创建默认项目
     if (this.projects.size === 0) {
-      console.log('初始化默认项目数据...');
       const defaultProjects: ProductProject[] = [
       {
         id: 'p1',
@@ -41,7 +40,12 @@ class ProjectService {
           videoChatEnabled: true,
           videoChatPrompt: '您是中恒创世科技的专业技术支持专家。请仔细分析用户提供的视频内容，识别产品使用或安装过程中的具体问题，并基于产品知识库提供准确的解决方案。\n\n分析重点：\n1. 产品型号识别与规格确认\n2. 安装步骤的正确性检查\n3. 连接线路与接口状态\n4. 设备指示灯与显示状态\n5. 操作流程的规范性\n6. 潜在安全隐患识别\n\n回复要求：\n- 使用专业但易懂的语言\n- 提供具体的操作步骤\n- 标注重要的安全注意事项\n- 如需更换配件，请说明具体型号\n- 优先引用官方知识库内容\n- 必要时建议联系中恒创世技术支持热线',
           avatarEnabled: true,
-          annotationEnabled: true
+          annotationEnabled: true,
+          // 默认联系信息
+          companyName: '中恒创世',
+          supportPhone: '400-888-6666',
+          supportWebsite: 'www.aivirtualservice.com',
+          wechatAccount: 'AI虚拟客服助手'
         },
         knowledgeBase: [
           { 
@@ -78,7 +82,12 @@ class ProjectService {
           videoChatEnabled: true,
           videoChatPrompt: '您是中恒创世科技SmartHome Pro系列产品的专业技术支持专家。请仔细分析用户提供的视频内容，识别智能家居设备使用或安装过程中的具体问题，并基于产品知识库提供准确的解决方案。\n\n分析重点：\n1. 设备型号识别与兼容性确认\n2. 网络连接状态与信号强度\n3. 安装位置与环境适配性\n4. 设备配对与同步状态\n5. 操作界面与功能设置\n6. 电源供应与线路安全\n\n回复要求：\n- 使用专业但易懂的语言\n- 提供具体的操作步骤\n- 标注重要的安全注意事项\n- 如需更换配件，请说明具体型号\n- 优先引用官方知识库内容\n- 必要时建议联系中恒创世技术支持热线',
           avatarEnabled: true,
-          annotationEnabled: true
+          annotationEnabled: true,
+          // 默认联系信息
+          companyName: '中恒创世',
+          supportPhone: '400-888-6666',
+          supportWebsite: 'www.aivirtualservice.com',
+          wechatAccount: 'AI虚拟客服助手'
         },
         knowledgeBase: [
           { 
@@ -122,7 +131,12 @@ class ProjectService {
           videoChatEnabled: true,
           videoChatPrompt: '您是中恒创世科技SmartThermostat智能温控系统的专业技术支持专家。请仔细分析用户提供的视频内容，识别温控设备使用或安装过程中的具体问题，并基于产品知识库提供准确的解决方案。\n\n分析重点：\n1. 温控器安装位置与环境条件\n2. 线路连接与电气安全\n3. 温度传感器工作状态\n4. 系统设置与程序配置\n5. 显示屏状态与用户界面\n6. 节能模式与时间设定\n\n回复要求：\n- 使用专业但易懂的语言\n- 提供具体的操作步骤\n- 特别注意电气安全提醒\n- 如需调整参数，请说明具体数值\n- 优先引用官方知识库内容\n- 必要时建议联系中恒创世技术支持热线',
           avatarEnabled: true,
-          annotationEnabled: true
+          annotationEnabled: true,
+          // 默认联系信息
+          companyName: '中恒创世',
+          supportPhone: '400-888-6666',
+          supportWebsite: 'www.aivirtualservice.com',
+          wechatAccount: 'AI虚拟客服助手'
         },
         knowledgeBase: [
           { 
@@ -155,8 +169,6 @@ class ProjectService {
     
     // 为默认项目生成扫码链接（如果还没有的话）
     this.initializeProjectLinks();
-    
-    console.log(`初始化完成，共加载 ${this.projects.size} 个项目`);
     }
   }
 
@@ -169,7 +181,6 @@ class ProjectService {
         const existingLinks = linkService.getAllLinksForProject(projectId);
         if (existingLinks.length === 0) {
           // 为项目生成100个扫码链接
-          console.log(`为项目 ${project.name} (${projectId}) 生成扫码链接...`);
           linkService.generateLinksForProject(projectId);
         }
       });
@@ -184,7 +195,6 @@ class ProjectService {
       const saved = localStorage.getItem('smartguide_projects');
       if (saved) {
         const parsed = JSON.parse(saved) as ProductProject[];
-        console.log(`从localStorage加载了 ${parsed.length} 个项目`);
         parsed.forEach(project => {
           // 确保项目配置完整
           const completeProject = {
@@ -340,7 +350,6 @@ class ProjectService {
   }): Promise<void> {
     // 这里可以实现用户访问日志
     // 注意：只记录必要的匿名统计信息，不记录个人隐私
-    console.log(`User accessed project ${projectId} at ${userInfo?.timestamp}`);
   }
 
   // 获取项目的扫码链接

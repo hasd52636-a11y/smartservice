@@ -5,7 +5,7 @@ import {
   ArrowLeft, Save, Trash2, FileText, QrCode, 
   ShieldCheck, Video, Globe, Sparkles, Download, 
   ExternalLink, Upload, FileUp, X, CheckCircle, Volume2,
-  Camera, MessageSquare
+  Camera, MessageSquare, Phone
 } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { linkService } from '../services/linkService';
@@ -30,6 +30,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [uploadFileName, setUploadFileName] = useState<string>('');
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<{hasKey: boolean, checked: boolean}>({
     hasKey: false, 
     checked: false
@@ -289,20 +290,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
           icon={<Video size={20}/>} 
         />
         <TabButton 
+          id="config" 
+          labelZh="客服回复设置" 
+          labelEn="Reply Config" 
+          active={activeTab === 'config'} 
+          onClick={setActiveTab} 
+          icon={<Sparkles size={20}/>} 
+        />
+        <TabButton 
           id="qr" 
           labelZh="发布部署" 
           labelEn="Deployment" 
           active={activeTab === 'qr'} 
           onClick={setActiveTab} 
           icon={<QrCode size={20}/>} 
-        />
-        <TabButton 
-          id="config" 
-          labelZh="AI配置" 
-          labelEn="AI Config" 
-          active={activeTab === 'config'} 
-          onClick={setActiveTab} 
-          icon={<Sparkles size={20}/>} 
         />
       </div>
 
@@ -550,15 +551,6 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
             </div>
           )}
 
-          {activeTab === 'qr' && (
-            <QRCodeSection 
-              projectId={id}
-              projectName={localProject.name}
-              complexLink={complexLink}
-              qrImageUrl={qrImageUrl}
-            />
-          )}
-
           {activeTab === 'config' && (
             <div className="space-y-8">
               {/* API 密钥配置 */}
@@ -619,6 +611,142 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                       密钥将安全保存在本地浏览器中。
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* 联系信息配置 */}
+              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                  <Phone className="text-blue-600" size={28} />
+                  联系信息配置
+                </h3>
+                
+                <div className="space-y-6">
+                  {/* 欢迎语配置 */}
+                  <div className="col-span-full">
+                    <label className="block text-sm font-bold text-slate-700 mb-3">
+                      欢迎语 (Welcome Message)
+                    </label>
+                    <textarea
+                      placeholder={`您好！我是 ${localProject.name} 的智能售后客服助手 🤖\n\n我可以帮您解决：\n• 产品使用问题\n• 安装指导\n• 故障排查\n• 维护保养\n\n请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`}
+                      value={localProject.config.welcomeMessage || ''}
+                      onChange={(e) => {
+                        const updatedProject = {
+                          ...localProject,
+                          config: {
+                            ...localProject.config,
+                            welcomeMessage: e.target.value
+                          }
+                        };
+                        autoSave(updatedProject);
+                      }}
+                      className="w-full h-32 px-4 py-3 border border-slate-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      用户扫码后看到的第一条消息，留空则使用默认欢迎语
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-3">
+                        公司名称
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="中恒创世"
+                        value={localProject.config.companyName || ''}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              companyName: e.target.value
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-3">
+                        技术支持热线
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="400-888-6666"
+                        value={localProject.config.supportPhone || ''}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              supportPhone: e.target.value
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-3">
+                        官方网站
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="www.aivirtualservice.com"
+                        value={localProject.config.supportWebsite || ''}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              supportWebsite: e.target.value
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-3">
+                        微信公众号
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="AI虚拟客服助手"
+                        value={localProject.config.wechatAccount || ''}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              wechatAccount: e.target.value
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 p-4 bg-blue-50 rounded-xl">
+                  <h4 className="text-sm font-bold text-blue-800 mb-2">配置说明</h4>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• 欢迎语是用户扫码后看到的第一条消息</li>
+                    <li>• 联系信息将显示在AI回复和用户界面中</li>
+                    <li>• 支持热线将在AI无法解答时提供给用户</li>
+                    <li>• 官方网站链接会在错误页面和帮助信息中显示</li>
+                    <li>• 微信公众号用于用户获取更多支持</li>
+                  </ul>
                 </div>
               </div>
 
@@ -685,29 +813,85 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                     <label className="block text-sm font-bold text-slate-700 mb-3">
                       语音角色 (Voice Character)
                     </label>
-                    <select
-                      value={localProject.config.voiceName}
-                      onChange={(e) => {
-                        const updatedProject = {
-                          ...localProject,
-                          config: {
-                            ...localProject.config,
-                            voiceName: e.target.value
+                    <div className="flex gap-3">
+                      <select
+                        value={localProject.config.voiceName}
+                        onChange={(e) => {
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              voiceName: e.target.value
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                        className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                      >
+                        <option value="tongtong">童童 (甜美女声)</option>
+                        <option value="xiaoxiao">小小 (活泼女声)</option>
+                        <option value="xiaochen">小陈 (专业男声)</option>
+                        <option value="xiaoming">小明 (亲切男声)</option>
+                        <option value="xiaoli">小丽 (温柔女声)</option>
+                        <option value="xiaowang">小王 (稳重男声)</option>
+                      </select>
+                      <button
+                        onClick={async () => {
+                          if (isPlayingVoice) return;
+                          
+                          try {
+                            setIsPlayingVoice(true);
+                            
+                            // 确保API密钥已设置
+                            const savedApiKey = localStorage.getItem('zhipuApiKey');
+                            if (savedApiKey) {
+                              aiService.setZhipuApiKey(savedApiKey);
+                            }
+                            
+                            // 根据选择的角色生成试听文本
+                            const voiceDescriptions = {
+                              tongtong: "您好，我是童童，很高兴为您服务！",
+                              xiaoxiao: "嗨！我是小小，让我来帮助您解决问题吧！",
+                              xiaochen: "您好，我是小陈，专业的技术支持为您服务。",
+                              xiaoming: "您好，我是小明，很高兴能够帮助您。",
+                              xiaoli: "您好，我是小丽，温柔地为您提供服务。",
+                              xiaowang: "您好，我是小王，稳重可靠的技术支持。"
+                            };
+                            
+                            const testText = voiceDescriptions[localProject.config.voiceName as keyof typeof voiceDescriptions] || "您好，这是语音试听测试。";
+                            
+                            // 调用TTS服务
+                            const audioData = await aiService.generateSpeech(testText, localProject.config.voiceName, localProject.config.provider);
+                            
+                            if (audioData) {
+                              const audio = new Audio(`data:audio/wav;base64,${audioData}`);
+                              audio.onended = () => setIsPlayingVoice(false);
+                              audio.onerror = () => setIsPlayingVoice(false);
+                              await audio.play();
+                            } else {
+                              alert('语音试听需要配置API密钥，请先在上方配置智谱AI API密钥。');
+                              setIsPlayingVoice(false);
+                            }
+                          } catch (error) {
+                            console.error('语音试听失败:', error);
+                            alert('语音试听失败，请检查API密钥配置或网络连接。');
+                            setIsPlayingVoice(false);
                           }
-                        };
-                        autoSave(updatedProject);
-                      }}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                    >
-                      <option value="tongtong">童童 (甜美女声)</option>
-                      <option value="xiaoxiao">小小 (活泼女声)</option>
-                      <option value="xiaochen">小陈 (专业男声)</option>
-                      <option value="xiaoming">小明 (亲切男声)</option>
-                      <option value="xiaoli">小丽 (温柔女声)</option>
-                      <option value="xiaowang">小王 (稳重男声)</option>
-                    </select>
+                        }}
+                        disabled={isPlayingVoice}
+                        className={`px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors ${
+                          isPlayingVoice 
+                            ? 'bg-violet-400 text-white cursor-not-allowed' 
+                            : 'bg-violet-600 text-white hover:bg-violet-700'
+                        }`}
+                        title="试听当前选择的语音角色"
+                      >
+                        <Volume2 size={18} />
+                        {isPlayingVoice ? '播放中...' : '试听'}
+                      </button>
+                    </div>
                     <p className="text-xs text-slate-500 mt-2">
-                      选择AI语音合成的音色风格
+                      选择AI语音合成的音色风格，点击试听按钮可以预览音色效果
                     </p>
                   </div>
                 </div>
@@ -897,6 +1081,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'qr' && (
+            <QRCodeSection 
+              projectId={id}
+              projectName={localProject.name}
+              complexLink={complexLink}
+              qrImageUrl={qrImageUrl}
+            />
           )}
         </div>
 

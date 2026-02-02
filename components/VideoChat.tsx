@@ -111,10 +111,8 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
         case 'text':
           if (data.type === 'content_part_done') {
             // Handle content part done event
-            console.log('Content part completed:', data.part);
           } else if (data.type === 'function_call_done') {
             // Handle function call done event
-            console.log('Function call completed:', data.function_name, data.function_arguments);
           } else if (data.text) {
             handleAssistantMessage(data.text);
           }
@@ -133,7 +131,7 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
     
     const success = await aiService.connectToRealtime(callback);
     if (success) {
-      console.log('Connected to GLM-Realtime');
+      // Connected successfully
     }
   };
   
@@ -288,7 +286,6 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
   // 处理视频数据
   const handleVideoData = (data: any) => {
     // 处理从服务器返回的视频数据
-    console.log('Received video data:', data);
   };
   
   // 发送消息

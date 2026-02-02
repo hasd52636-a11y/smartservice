@@ -39,7 +39,6 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
 
   const handleDownload = async () => {
     try {
-      console.log('下载二维码，链接:', complexLink);
       if (!complexLink) {
         alert('链接生成失败，请刷新页面重试');
         return;
@@ -61,8 +60,6 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
   };
 
   const handlePreview = () => {
-    console.log('点击预览按钮');
-    console.log('complexLink:', complexLink);
     if (complexLink) {
       window.open(complexLink, '_blank');
     } else {
@@ -71,19 +68,13 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
   };
 
   const handleTestLink = () => {
-    console.log('=== 测试二维码链接 ===');
-    console.log('项目ID:', projectId);
-    console.log('生成的链接:', complexLink);
-    
     if (complexLink) {
       const match = complexLink.match(/\/entry\/([^?]+)/);
       if (match) {
         const shortCode = match[1];
-        console.log('提取的shortCode:', shortCode);
         
         import('../services/linkService').then(({ linkService }) => {
           const mappedProjectId = linkService.getProjectIdByShortCode(shortCode);
-          console.log('映射回的项目ID:', mappedProjectId);
           
           if (mappedProjectId === projectId) {
             alert('✅ 二维码链接测试成功！\n\n链接可以正确映射到当前项目。');
@@ -100,11 +91,9 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
   };
 
   const handleRegenerate = async () => {
-    console.log('=== 重新生成二维码链接 ===');
     try {
       const { linkService } = await import('../services/linkService');
       const newLinks = linkService.regenerateProjectLinks(projectId);
-      console.log('重新生成的链接:', newLinks);
       
       if (newLinks.length > 0) {
         alert('✅ 链接重新生成成功！\n\n请刷新页面查看新的二维码。');
@@ -138,8 +127,6 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
   };
 
   const handleSetProductionDomain = async () => {
-    console.log('=== 设置生产环境域名 ===');
-    
     // 预设的域名选项（包括当前检测到的域名）
     const currentHost = window.location.hostname;
     const currentUrl = `${window.location.protocol}//${currentHost}`;
@@ -211,7 +198,6 @@ const QRCodeSection: React.FC<QRCodeSectionProps> = ({
   };
 
   const handleTestChat = () => {
-    console.log('=== 测试对话功能 ===');
     if (complexLink) {
       const testWindow = window.open(complexLink, '_blank', 'width=400,height=600');
       if (testWindow) {

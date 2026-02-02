@@ -1,147 +1,141 @@
-# 🚀 Vercel 部署指南
+# SmartGuide AI 部署指南
 
-## 📋 **部署流程**
+## 🚀 Vercel 部署步骤
 
-### 1. **GitHub 配置**
-```bash
-# 代码已推送到 GitHub
-git push origin main
-```
+### 1. 准备工作
+- 确保代码已推送到 GitHub 仓库
+- 获取智谱AI API密钥
 
-### 2. **Vercel 部署设置**
-
-#### 🔗 **连接 GitHub**
+### 2. Vercel 部署
 1. 访问 [Vercel Dashboard](https://vercel.com/dashboard)
 2. 点击 "New Project"
-3. 选择 GitHub 仓库：`hasd52636-a11y/smartservice`
-4. 点击 "Import"
+3. 导入 GitHub 仓库
+4. 配置项目设置：
+   - Framework Preset: `Vite`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
 
-#### ⚙️ **项目配置**
-```
-Framework Preset: Vite
-Build Command: npm run vercel-build
-Output Directory: dist
-Install Command: npm install
-```
+### 3. 环境变量配置
+在 Vercel 项目设置中添加以下环境变量：
 
-#### 🔐 **环境变量设置**
-在 Vercel 项目设置中添加：
-```
+```bash
+# 必需的环境变量
 ZHIPU_API_KEY=your_zhipu_api_key_here
-NODE_ENV=production
+
+# 可选的环境变量
+VITE_APP_TITLE=SmartGuide AI
+VITE_APP_VERSION=1.0.0
+VITE_ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 ```
 
-### 3. **部署后验证**
+### 4. 域名配置（可选）
+- 在 Vercel 项目设置中添加自定义域名
+- 配置 DNS 记录指向 Vercel
 
-#### ✅ **功能检查清单**
-- [ ] 主页加载正常
-- [ ] 项目创建功能
-- [ ] API密钥配置界面
-- [ ] 智谱AI API连接测试
-- [ ] QR码生成和扫描
-- [ ] 智能路由功能
+### 5. 部署完成
+- 点击 "Deploy" 开始部署
+- 等待部署完成，获取访问链接
 
-## 🔧 **部署配置文件**
+## 🔧 本地开发
 
-### `vercel.json`
-```json
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/zhipu/(.*)",
-      "dest": "/api/zhipu/[...endpoint].js"
-    },
-    {
-      "src": "/api/ocr",
-      "dest": "/api/ocr.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
-}
-```
+### 环境要求
+- Node.js 24.x
+- npm 或 yarn
 
-## 🚨 **重要注意事项**
-
-### 1. **API 路由变化**
-- **本地开发**: 使用后端服务器 (localhost:3002)
-- **Vercel部署**: 使用 Serverless Functions
-
-### 2. **环境差异**
-| 环境 | API路由 | 后端服务 |
-|------|---------|----------|
-| 本地 | Vite代理 → Express后端 | Node.js服务器 |
-| Vercel | 直接调用 | Serverless Functions |
-
-### 3. **功能影响分析**
-
-#### ✅ **正常功能**
-- 智谱AI API调用（通过Serverless Functions）
-- 前端所有功能（React应用）
-- 智能路由和模型选择
-- QR码生成和扫描
-- 用户界面和交互
-
-#### ⚠️ **需要注意**
-- **文件上传**: Vercel有文件大小限制（4.5MB）
-- **函数超时**: 最大60秒执行时间
-- **并发限制**: 根据Vercel套餐限制
-
-#### 🔄 **自动适配**
-系统会自动检测环境：
-```typescript
-// 自动适配部署环境
-const API_BASE = process.env.NODE_ENV === 'production' 
-  ? '/api'  // Vercel Serverless
-  : '/api'; // 本地代理
-```
-
-## 🎯 **部署后测试**
-
-### 1. **基础功能测试**
+### 开发步骤
 ```bash
-# 访问部署的应用
-https://your-app.vercel.app
+# 1. 克隆仓库
+git clone <your-repo-url>
+cd smartguide-ai
 
-# 测试API端点
-https://your-app.vercel.app/api/zhipu/chat/completions
+# 2. 安装依赖
+npm install
+
+# 3. 配置环境变量（可选，用于本地测试）
+# 创建 .env 文件并添加 ZHIPU_API_KEY
+
+# 4. 启动开发服务器
+npm run dev
+
+# 5. 构建生产版本
+npm run build
+
+# 6. 预览生产版本
+npm run preview
 ```
 
-### 2. **智能路由测试**
-- 文本对话 → 自动选择 GLM-4.7
-- 图片上传 → 自动选择 GLM-4.6V
-- 语音功能 → 自动选择 GLM-4-Voice
+## 📋 部署检查清单
 
-## 🔄 **持续部署**
+### 部署前检查
+- [ ] 代码已推送到 GitHub
+- [ ] 已获取智谱AI API密钥
+- [ ] 已删除所有测试文件和敏感信息
+- [ ] 构建测试通过 (`npm run build`)
 
-### 自动部署触发
-```bash
-# 每次推送到main分支都会自动部署
-git add .
-git commit -m "更新功能"
-git push origin main
-# Vercel 自动检测并部署
-```
+### 部署后检查
+- [ ] 网站可以正常访问
+- [ ] 管理后台功能正常 (`/admin`)
+- [ ] API密钥配置正确
+- [ ] 系统诊断通过 (`/admin/diagnostics`)
+- [ ] 二维码生成和扫码功能正常
+- [ ] AI对话功能正常
 
-### 部署状态监控
-- Vercel Dashboard 查看部署状态
-- 实时日志和错误监控
-- 性能分析和优化建议
+## 🐛 常见问题
 
-## 🎉 **部署完成**
+### 1. 构建失败
+**问题**: `npm run build` 失败
+**解决**: 
+- 检查 TypeScript 错误
+- 确保所有依赖已安装
+- 检查 Node.js 版本是否为 24.x
 
-部署成功后，您将获得：
-- 🌐 **生产环境URL**: `https://your-app.vercel.app`
-- 📱 **移动端适配**: 响应式设计
-- ⚡ **全球CDN**: Vercel边缘网络加速
-- 🔒 **HTTPS**: 自动SSL证书
-- 🚀 **智能路由**: 自动模型选择功能
+### 2. API密钥错误
+**问题**: AI功能无法使用
+**解决**:
+- 检查 Vercel 环境变量配置
+- 确认 API 密钥格式正确
+- 访问 `/admin/diagnostics` 检查连接状态
+
+### 3. 二维码无效
+**问题**: 扫码后无法访问
+**解决**:
+- 确认项目状态为"已发布"
+- 检查链接生成是否正常
+- 清除浏览器缓存重试
+
+### 4. 域名访问问题
+**问题**: 自定义域名无法访问
+**解决**:
+- 检查 DNS 配置
+- 确认 SSL 证书状态
+- 等待 DNS 传播（最多24小时）
+
+## 🔒 安全建议
+
+### 生产环境安全
+- 不要在代码中硬编码 API 密钥
+- 使用 Vercel 环境变量管理敏感信息
+- 定期更新依赖包
+- 监控 API 使用情况
+
+### 访问控制
+- 管理后台建议设置访问密码
+- 定期备份项目数据
+- 监控异常访问
+
+## 📊 性能优化
+
+### 生产环境优化
+- 启用 Vercel 的 Edge Functions
+- 配置适当的缓存策略
+- 使用 CDN 加速静态资源
+- 监控 Core Web Vitals
+
+### 成本控制
+- 监控 API 调用次数
+- 设置合理的使用限制
+- 定期清理无用数据
+
+---
+
+部署完成后，您的智能客服系统就可以为用户提供服务了！

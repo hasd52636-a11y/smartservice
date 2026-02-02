@@ -139,7 +139,6 @@ export class LinkService {
     // 检查是否已经为该项目生成过链接
     const existingShortCodes = this.projectLinks.get(projectId);
     if (existingShortCodes && existingShortCodes.length > 0) {
-      console.log(`项目 ${projectId} 已存在链接，返回现有链接`);
       return existingShortCodes.map(code => this.complexLinks.get(code) || '').filter(Boolean);
     }
 
@@ -181,7 +180,6 @@ export class LinkService {
     this.projectLinks.set(projectId, shortCodes);
     this.projectCurrentIndex.set(projectId, 0); // 初始化项目的当前索引
     this.saveToStorage();
-    console.log(`为项目 ${projectId} 生成了 ${links.length} 个固定链接`);
     return links;
   }
 
@@ -358,7 +356,6 @@ export class LinkService {
     
     if (expiredShortCodes.length > 0) {
       this.saveLinkStates();
-      console.log(`清理了 ${expiredShortCodes.length} 个过期链接状态`);
     }
   }
 
@@ -410,7 +407,6 @@ export class LinkService {
     if (!selectedShortCode && shortCodes.length > 0) {
       selectedShortCode = shortCodes[Math.floor(Math.random() * shortCodes.length)];
       this.setLinkActive(selectedShortCode, true);
-      console.log('强制使用链接:', selectedShortCode);
     }
 
     // 更新项目当前索引
@@ -424,7 +420,6 @@ export class LinkService {
     }
 
     const fullLink = this.complexLinks.get(selectedShortCode) || '';
-    console.log('Selected link:', fullLink);
     return fullLink;
   }
 
@@ -436,25 +431,15 @@ export class LinkService {
 
   // 根据shortCode获取对应的项目ID
   getProjectIdByShortCode(shortCode: string): string | null {
-    console.log('=== getProjectIdByShortCode Debug ===');
-    console.log('查找shortCode:', shortCode);
-    console.log('当前projectLinks数量:', this.projectLinks.size);
-    console.log('linkToProjectMap大小:', this.linkToProjectMap.size);
-    
     // 方法1: 使用反向映射快速查找
     const projectIdFromMap = this.linkToProjectMap.get(shortCode);
-    console.log('方法1 - 从反向映射查找:', projectIdFromMap);
     if (projectIdFromMap) {
-      console.log('✅ 方法1 - 找到匹配的项目ID:', projectIdFromMap);
       return projectIdFromMap;
     }
     
     // 方法2: 遍历项目链接查找
-    console.log('方法1失败，尝试遍历项目链接查找...');
     for (const [projectId, shortCodes] of this.projectLinks.entries()) {
-      console.log(`检查项目 ${projectId}:`, shortCodes.length, '个shortCode');
       if (shortCodes.includes(shortCode)) {
-        console.log('✅ 方法2 - 找到匹配的项目ID:', projectId);
         // 更新反向映射，提高下次查找效率
         this.linkToProjectMap.set(shortCode, projectId);
         this.saveToStorage();
@@ -462,12 +447,6 @@ export class LinkService {
       }
     }
     
-    // 方法3: 检查是否有相似的shortCode
-    console.log('方法2失败，尝试查找相似的shortCode...');
-    // 这里可以添加更复杂的匹配逻辑
-    
-    console.log('❌ 未找到匹配的项目ID');
-    console.log('================================');
     return null;
   }
 
@@ -504,8 +483,6 @@ export class LinkService {
 
   // 重新生成项目的所有链接（修复格式错误的链接）
   regenerateProjectLinks(projectId: string): string[] {
-    console.log(`重新生成项目 ${projectId} 的链接...`);
-    
     // 清除旧链接
     const oldShortCodes = this.projectLinks.get(projectId) || [];
     oldShortCodes.forEach(shortCode => {
@@ -520,15 +497,11 @@ export class LinkService {
     
     // 生成新链接
     const newLinks = this.generateLinksForProject(projectId);
-    console.log(`为项目 ${projectId} 重新生成了 ${newLinks.length} 个链接`);
-    
     return newLinks;
   }
 
   // 检查并修复所有项目的链接格式
   validateAndFixAllLinks(): void {
-    console.log('开始检查和修复所有项目的链接格式...');
-    
     for (const [projectId, shortCodes] of this.projectLinks.entries()) {
       let needsRegeneration = false;
       
@@ -536,7 +509,6 @@ export class LinkService {
       for (const shortCode of shortCodes) {
         const link = this.complexLinks.get(shortCode);
         if (!link || !link.startsWith('http')) {
-          console.log(`发现格式错误的链接，项目: ${projectId}, shortCode: ${shortCode}, link: ${link}`);
           needsRegeneration = true;
           break;
         }
@@ -546,8 +518,6 @@ export class LinkService {
         this.regenerateProjectLinks(projectId);
       }
     }
-    
-    console.log('链接格式检查和修复完成');
   }
 }
 

@@ -34,7 +34,6 @@ import UserPreview from './components/UserPreview';
 import VideoChat from './components/VideoChat';
 import Settings from './components/Settings';
 import KnowledgeBase from './components/KnowledgeBase';
-import SmartSearch from './components/SmartSearch';
 import Diagnostics from './components/Diagnostics';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -47,13 +46,7 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
   
   React.useEffect(() => {
     const handleLinkEntry = async () => {
-      console.log('=== 扫码链接处理开始 ===');
-      console.log('shortCode:', shortCode);
-      console.log('当前URL:', window.location.href);
-      console.log('User Agent:', navigator.userAgent);
-      
       if (!shortCode) {
-        console.log('shortCode为空，显示错误');
         setError('无效的链接');
         setLoading(false);
         return;
@@ -64,12 +57,9 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
         setError('');
         
         // 强制初始化项目服务（确保数据加载）
-        console.log('强制初始化项目服务...');
         const allProjects = await projectService.getAllProjects();
-        console.log('项目服务初始化完成，项目数量:', allProjects.length);
         
         // 等待linkService完全初始化
-        console.log('等待linkService初始化...');
         let retryCount = 0;
         let projectId = null;
         
@@ -78,11 +68,9 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
           
           // 尝试查找项目ID
           projectId = linkService.getProjectIdByShortCode(shortCode);
-          console.log(`尝试 ${retryCount + 1}: 找到的项目ID:`, projectId);
           
           if (!projectId) {
             // 如果没找到，强制重新生成所有项目的链接
-            console.log('未找到项目映射，强制重新生成链接...');
             for (const project of allProjects) {
               linkService.generateLinksForProject(project.id);
             }
@@ -93,48 +81,22 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
         
         if (projectId) {
           // 验证项目是否存在且可用
-          console.log('验证项目:', projectId);
           const validation = await projectService.validateProjectId(projectId);
-          console.log('项目验证结果:', validation);
           
           if (validation.valid && validation.project) {
-            console.log('项目验证成功，直接渲染用户界面');
             setProjectId(projectId);
             setLoading(false);
           } else {
-            console.log('项目验证失败:', validation.error);
             setError(validation.error || '项目不可用');
             setLoading(false);
           }
         } else {
-          console.log('重试后仍未找到对应的项目');
           setError('二维码无效或已过期，请联系客服');
           setLoading(false);
         }
       } catch (error) {
         console.error('链接处理失败:', error);
         setError('服务初始化失败，请刷新重试');
-        setLoading(false);
-      }
-    };
-          
-          if (validation.valid && validation.project) {
-            console.log('项目验证成功，直接渲染用户界面');
-            setProjectId(id);
-            setLoading(false);
-          } else {
-            console.log('项目验证失败:', validation.error);
-            setError(validation.error || '项目不可用');
-            setLoading(false);
-          }
-        } else {
-          console.log('未找到对应的项目，可能是无效的二维码');
-          setError('无效的二维码或链接已过期');
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('链接处理失败:', error);
-        setError('链接处理失败，请稍后重试');
         setLoading(false);
       }
     };
@@ -201,7 +163,6 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
 
   // 项目验证成功，直接渲染用户界面
   if (projectId) {
-    console.log('项目验证成功，渲染UserPreview组件，projectId:', projectId);
     return <UserPreview projects={projects} projectId={projectId} />;
   }
 
@@ -385,7 +346,6 @@ const App: React.FC = () => {
       // 优先使用保存的生产域名
       const savedDomain = localStorage.getItem('productionDomain');
       if (savedDomain) {
-        console.log('使用保存的生产域名:', savedDomain);
         linkService.setBaseUrl(savedDomain);
         return;
       }
@@ -394,13 +354,10 @@ const App: React.FC = () => {
       const currentHost = window.location.hostname;
       
       if (currentHost === 'sora.wboke.com') {
-        console.log('检测到sora.wboke.com域名，设置基础URL为: https://sora.wboke.com');
         linkService.setBaseUrl('https://sora.wboke.com');
       } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
-        console.log('检测到本地开发环境');
         // 本地环境使用默认设置
       } else {
-        console.log('检测到其他环境，当前域名:', currentHost);
         // 其他环境自动使用当前域名
         const protocol = window.location.protocol;
         const port = window.location.port;
@@ -408,7 +365,6 @@ const App: React.FC = () => {
         if (port && port !== '80' && port !== '443') {
           baseUrl += `:${port}`;
         }
-        console.log('自动设置基础URL为:', baseUrl);
         linkService.setBaseUrl(baseUrl);
       }
     };
@@ -535,7 +491,6 @@ const App: React.FC = () => {
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/diagnostics" element={<Diagnostics />} />
                     <Route path="/knowledge" element={<KnowledgeBase />} />
-                    <Route path="/search" element={<SmartSearch />} />
                   </Routes>
                 </main>
               </div>
@@ -587,7 +542,6 @@ const App: React.FC = () => {
                     <Route path="/diagnostics" element={<Diagnostics />} />
                     {/* 商家后台专有功能 */}
                     <Route path="/knowledge" element={<KnowledgeBase />} />
-                    <Route path="/search" element={<SmartSearch />} />
                   </Routes>
                 </main>
               </div>

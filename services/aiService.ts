@@ -160,9 +160,6 @@ export class AIService {
         throw new Error('智谱AI API密钥未设置，请先配置API密钥');
       }
 
-      console.log('Making Zhipu API request to:', `${ZHIPU_BASE_URL}${endpoint}`);
-      console.log('Request body:', JSON.stringify(body, null, 2));
-
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
@@ -170,11 +167,7 @@ export class AIService {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
-        timeout: 30000, // 30秒超时
       });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
 
       if (!response.ok) {
         let errorMessage = 'Zhipu API Error';
@@ -194,7 +187,6 @@ export class AIService {
 
         // 检查是否需要重试
         if (this.retryConfig.retryableStatuses.includes(response.status) && retryCount < this.retryConfig.maxRetries) {
-          console.log(`Retrying request (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
           await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
           return this.zhipuFetch(endpoint, body, isBinary, retryCount + 1);
         }
@@ -208,7 +200,6 @@ export class AIService {
       
       // 网络错误重试
       if (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')) && retryCount < this.retryConfig.maxRetries) {
-        console.log(`Retrying request due to network error (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
         await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
         return this.zhipuFetch(endpoint, body, isBinary, retryCount + 1);
       }
@@ -226,9 +217,6 @@ export class AIService {
         throw new Error('智谱AI API密钥未设置，请先配置API密钥');
       }
 
-      console.log('Making Zhipu API stream request to:', `${ZHIPU_BASE_URL}${endpoint}`);
-      console.log('Request body:', JSON.stringify(body, null, 2));
-
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
@@ -236,10 +224,7 @@ export class AIService {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
-        timeout: 60000, // 60秒超时
       });
-
-      console.log('Stream response status:', response.status);
 
       if (!response.ok) {
         let errorMessage = 'Zhipu API Error';
@@ -259,7 +244,6 @@ export class AIService {
 
         // 检查是否需要重试
         if (this.retryConfig.retryableStatuses.includes(response.status) && retryCount < this.retryConfig.maxRetries) {
-          console.log(`Retrying stream request (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
           await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
           return this.zhipuStreamFetch(endpoint, body, callback, retryCount + 1);
         }
@@ -319,7 +303,6 @@ export class AIService {
       
       // 网络错误重试
       if (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')) && retryCount < this.retryConfig.maxRetries) {
-        console.log(`Retrying stream request due to network error (${retryCount + 1}/${this.retryConfig.maxRetries})...`);
         await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
         return this.zhipuStreamFetch(endpoint, body, callback, retryCount + 1);
       }
@@ -382,10 +365,11 @@ export class AIService {
     maxTokens?: number;
     tools?: FunctionTool[];
     responseFormat?: { type: 'text' | 'json_object' };
+    projectConfig?: any; // 添加项目配置参数
   }) {
     // 检查API密钥是否存在
     if (!this.zhipuApiKey) {
-      const mockResponse = this.generateMockResponse(prompt, knowledge);
+      const mockResponse = this.generateMockResponse(prompt, knowledge, options?.projectConfig);
       
       if (options?.stream && options?.callback) {
         // 模拟流式输出
@@ -407,6 +391,8 @@ export class AIService {
     }
 
     try {
+      const combinedKnowledge = knowledge;
+      
       // 1. 向量化用户查询
       const queryEmbedding = await this.createEmbedding(prompt, {
         model: ZhipuModel.EMBEDDING_3,
@@ -415,40 +401,58 @@ export class AIService {
       
       // 2. 向量化知识库文档（如果尚未向量化）
       const vectorizedKnowledge = await Promise.all(
-        knowledge.map(async (item) => {
+        combinedKnowledge.map(async (item) => {
           if (!item.embedding) {
             const embeddingResult = await this.createEmbedding(item.content, {
               model: ZhipuModel.EMBEDDING_3,
               dimensions: 768
             });
-            return { ...item, embedding: embeddingResult.data[0].embedding };
+            const embedding = embeddingResult.data[0].embedding;
+            return { ...item, embedding };
           }
           return item;
         })
       );
       
       // 3. 计算相似度并排序
-      const relevantItems = vectorizedKnowledge
-        .map(item => ({
+      const scoredItems = vectorizedKnowledge.map(item => {
+        const score = this.cosineSimilarity(
+          queryEmbedding.data[0].embedding,
+          item.embedding!
+        );
+        
+        // 产品知识库优先处理
+        const isProductKnowledge = true;
+        const weightedScore = score * 1.2;
+        
+        return {
           item,
-          score: this.cosineSimilarity(
-            queryEmbedding.data[0].embedding,
-            item.embedding!
-          )
-        }))
-        .filter(item => item.score > 0.3) // 阈值过滤
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5) // 最多返回5个相关文档
-        .map(item => item.item);
+          score: weightedScore,
+          isProductKnowledge
+        };
+      });
       
-      // 4. 构建上下文
+      // 4. 过滤和排序
+      const relevantItems = scoredItems
+        .filter(item => item.score > 0.3) // 阈值过滤
+        .sort((a, b) => b.score - a.score) // 按分数排序
+        .slice(0, 5) // 最多返回5个相关文档
+        .map(item => ({
+          ...item.item,
+          source: 'product'
+        }));
+      
+      // 5. 构建上下文
       const context = relevantItems.length > 0 
-        ? relevantItems.map((item, index) => `[Knowledge Item ${index + 1}: ${item.title}]\n${item.content}`).join('\n\n')
-        : "No direct match in custom knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
+        ? relevantItems.map((item, index) => {
+            const sourceLabel = item.source === 'product' ? '产品知识库' : '通用知识库';
+            return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
+          }).join('\n\n')
+        : "No direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
 
       const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
-2. **Do not invent or assume any information** not explicitly stated in the context
-3. **Cite the source** of your information by referencing the knowledge item number
+2. **Prioritize product-specific knowledge** over general knowledge when both are available
+3. **Cite the source** of your information by referencing the knowledge item number and source
 4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
       // 仅使用智谱AI实现，启用智能路由
@@ -514,50 +518,60 @@ export class AIService {
       }
       
       // 回退到传统关键词检索
-      const relevantItems = this.retrieveRelevantKnowledge(prompt, knowledge);
-      const context = relevantItems.length > 0 
-        ? relevantItems.map((item, index) => `[Knowledge Item ${index + 1}: ${item.title}]\n${item.content}`).join('\n\n')
-        : "No direct match in custom knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
+      try {
+        const combinedKnowledge = knowledge;
+        
+        const relevantItems = this.retrieveRelevantKnowledge(prompt, combinedKnowledge);
+        const context = relevantItems.length > 0 
+          ? relevantItems.map((item, index) => {
+              const sourceLabel = '产品知识库';
+              return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
+            }).join('\n\n')
+          : "No direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
 
-      const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
-2. **Do not invent or assume any information** not explicitly stated in the context
-3. **Cite the source** of your information by referencing the knowledge item number
+        const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
+2. **Prioritize product-specific knowledge** over general knowledge when both are available
+3. **Cite the source** of your information by referencing the knowledge item number and source
 4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
-      const optimalModel = this.getOptimalModel(prompt, options);
-      
-      // 根据模型类型构建不同的消息格式
-      let messages;
-      if (optimalModel === ZhipuModel.GLM_4_VOICE) {
-        // GLM-4-Voice 需要特殊的消息格式
-        messages = [
-          { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
-          { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
-        ];
-      } else {
-        // 普通文本模型
-        messages = [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: fullPrompt }
-        ];
-      }
-      
-      const requestBody = {
-        model: optimalModel,
-        messages: messages,
-        temperature: options?.temperature || 0.1,
-        max_tokens: options?.maxTokens || 1024,
-        stream: options?.stream || false,
-        tools: options?.tools,
-        response_format: options?.responseFormat
-      };
+        const optimalModel = this.getOptimalModel(prompt, options);
+        
+        // 根据模型类型构建不同的消息格式
+        let messages;
+        if (optimalModel === ZhipuModel.GLM_4_VOICE) {
+          // GLM-4-Voice 需要特殊的消息格式
+          messages = [
+            { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
+            { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
+          ];
+        } else {
+          // 普通文本模型
+          messages = [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: fullPrompt }
+          ];
+        }
+        
+        const requestBody = {
+          model: optimalModel,
+          messages: messages,
+          temperature: options?.temperature || 0.1,
+          max_tokens: options?.maxTokens || 1024,
+          stream: options?.stream || false,
+          tools: options?.tools,
+          response_format: options?.responseFormat
+        };
 
-      if (options?.stream && options?.callback) {
-        await this.zhipuStreamFetch('/chat/completions', requestBody, options.callback);
-        return '';
-      } else {
-        const data = await this.zhipuFetch('/chat/completions', requestBody);
-        return data.choices[0].message.content;
+        if (options?.stream && options?.callback) {
+          await this.zhipuStreamFetch('/chat/completions', requestBody, options.callback);
+          return '';
+        } else {
+          const data = await this.zhipuFetch('/chat/completions', requestBody);
+          return data.choices[0].message.content;
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        throw error; // 抛出原始错误
       }
     }
   }
@@ -600,7 +614,6 @@ export class AIService {
   async recognizeSpeech(audioData: string, provider: AIProvider): Promise<string | undefined> {
     // 检查API密钥是否存在
     if (!this.zhipuApiKey) {
-      console.log('No API key available, using mock speech recognition');
       return this.generateMockSpeechRecognition();
     }
 
@@ -675,7 +688,6 @@ export class AIService {
   async analyzeInstallation(imageBuffer: string, visionPrompt: string, provider: AIProvider) {
     // 检查API密钥是否存在
     if (!this.zhipuApiKey) {
-      console.log('No API key available, using mock image analysis');
       return this.generateMockImageAnalysis(visionPrompt);
     }
 
@@ -701,7 +713,6 @@ export class AIService {
   async generateSpeech(text: string, voiceName: string, provider: AIProvider): Promise<string | undefined> {
     // 检查API密钥是否存在
     if (!this.zhipuApiKey) {
-      console.log('No API key available, TTS not available');
       return undefined;
     }
 
@@ -732,12 +743,6 @@ export class AIService {
     }
     
     try {
-      console.log('Generating video guide with prompt:', prompt);
-      
-      // 注意：由于CogVideoX-3 API需要后端服务支持
-      // 这里使用多模态API生成视频脚本，然后返回示例视频
-      // 实际部署时需要实现后端服务调用CogVideoX-3 API
-      
       // 生成视频脚本
       const videoScript = await this.zhipuFetch('/chat/completions', {
         model: 'glm-4.7',
@@ -755,11 +760,7 @@ export class AIService {
         max_tokens: 1024
       });
       
-      console.log('Video script generated successfully');
-      
       // 模拟视频生成过程（实际部署时替换为真实的CogVideoX-3 API调用）
-      console.log('Simulating video generation with CogVideoX-3...');
-      
       // 注意：实际的CogVideoX-3 API调用需要后端服务
       // 前端直接调用会暴露API密钥，不安全
       // 以下是后端服务的参考实现：
@@ -872,7 +873,6 @@ export class AIService {
       
       const endpoint = `wss://open.bigmodel.cn/api/paas/v4/realtime?model=${ZhipuModel.GLM_REALTIME}`;
       
-      console.log('Connecting to GLM-Realtime:', endpoint);
       this.realtimeWebSocket = new WebSocket(endpoint);
       this.realtimeCallbacks.push(callback);
       
@@ -880,8 +880,6 @@ export class AIService {
       
       return new Promise((resolve) => {
         this.realtimeWebSocket!.onopen = () => {
-          console.log('GLM-Realtime WebSocket connected');
-          
           // 发送认证消息
           try {
             const authMessage = JSON.stringify({
@@ -890,7 +888,6 @@ export class AIService {
                 token: key
               }
             });
-            console.log('Sending auth message...');
             this.realtimeWebSocket?.send(authMessage);
           } catch (error) {
             console.error('Error sending auth message:', error);
@@ -902,12 +899,10 @@ export class AIService {
         this.realtimeWebSocket!.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log('Received GLM-Realtime message:', data.type);
             
             // 处理认证响应
             if (data.type === 'auth' && data.data) {
               if (data.data.status === 'success') {
-                console.log('GLM-Realtime authentication successful');
                 this.isRealtimeConnected = true;
                 callback({ status: 'connected' }, 'status');
                 if (!connectionResolved) {
@@ -988,7 +983,7 @@ export class AIService {
                 // 忽略心跳消息，避免过多日志
                 break;
               default:
-                console.log('Unhandled GLM-Realtime message type:', data.type);
+                break;
             }
           } catch (error) {
             console.error('Error parsing realtime message:', error);
@@ -996,7 +991,6 @@ export class AIService {
         };
         
         this.realtimeWebSocket!.onclose = (event) => {
-          console.log('GLM-Realtime WebSocket closed:', event.code, event.reason);
           this.isRealtimeConnected = false;
           callback({ status: 'disconnected' }, 'status');
           if (!connectionResolved) {
@@ -1018,7 +1012,6 @@ export class AIService {
         setTimeout(() => {
           if (!connectionResolved) {
             connectionResolved = true;
-            console.error('GLM-Realtime connection timeout');
             callback({ error: '连接超时' }, 'status');
             this.realtimeWebSocket?.close();
             resolve(false);
@@ -1186,7 +1179,6 @@ export class AIService {
       this.isRealtimeConnected = false;
       this.realtimeCallbacks = [];
       this.streamId = null;
-      console.log('GLM-Realtime disconnected');
     }
   }
 
@@ -1224,7 +1216,7 @@ export class AIService {
   }
 
   // 生成模拟响应（当没有API密钥时使用）
-  private generateMockResponse(prompt: string, knowledge: KnowledgeItem[]): string {
+  private generateMockResponse(prompt: string, knowledge: KnowledgeItem[], projectConfig?: any): string {
     // 确保prompt是字符串类型，处理各种可能的输入
     let promptStr = '';
     if (typeof prompt === 'string') {
@@ -1238,44 +1230,54 @@ export class AIService {
     
     const lowerPrompt = promptStr.toLowerCase();
     
+    // 获取联系信息（优先使用项目配置，否则使用默认值）
+    const supportPhone = projectConfig?.supportPhone || '400-888-6666';
+    const supportWebsite = projectConfig?.supportWebsite || 'www.aivirtualservice.com';
+    const companyName = projectConfig?.companyName || '中恒创世';
+    
     // 检查是否有相关的知识库内容
     const relevantItems = this.retrieveRelevantKnowledge(promptStr, knowledge);
     
     if (relevantItems.length > 0) {
       // 如果有相关知识，基于知识库内容生成响应
       const firstItem = relevantItems[0];
-      return `根据产品知识库，关于"${promptStr}"的信息：\n\n${firstItem.content.substring(0, 200)}${firstItem.content.length > 200 ? '...' : ''}\n\n如需更详细信息，请联系中恒创世技术支持：400-888-6666`;
+      return `根据产品知识库，关于"${promptStr}"的信息：\n\n${firstItem.content.substring(0, 200)}${firstItem.content.length > 200 ? '...' : ''}\n\n如需更详细信息，请联系${companyName}技术支持：${supportPhone}`;
     }
     
     // 常见问题的模拟响应
     if (lowerPrompt.includes('安装') || lowerPrompt.includes('install')) {
-      return '关于产品安装，建议您：\n\n1. 仔细阅读产品说明书\n2. 确保安装环境符合要求\n3. 按照步骤逐一操作\n4. 如遇问题请拍照发送给我分析\n\n如需专业技术支持，请联系：400-888-6666';
+      return `关于产品安装，建议您：\n\n1. 仔细阅读产品说明书\n2. 确保安装环境符合要求\n3. 按照步骤逐一操作\n4. 如遇问题请拍照发送给我分析\n\n如需专业技术支持，请联系：${supportPhone}`;
     }
     
     if (lowerPrompt.includes('故障') || lowerPrompt.includes('问题') || lowerPrompt.includes('error')) {
-      return '遇到产品故障时，请：\n\n1. 描述具体故障现象\n2. 提供产品型号信息\n3. 上传故障现场照片\n4. 说明使用环境和操作步骤\n\n我会基于这些信息为您提供解决方案。如需人工客服，请拨打：400-888-6666';
+      return `遇到产品故障时，请：\n\n1. 描述具体故障现象\n2. 提供产品型号信息\n3. 上传故障现场照片\n4. 说明使用环境和操作步骤\n\n我会基于这些信息为您提供解决方案。如需人工客服，请拨打：${supportPhone}`;
     }
     
     if (lowerPrompt.includes('使用') || lowerPrompt.includes('操作') || lowerPrompt.includes('how')) {
-      return '关于产品使用方法：\n\n1. 请先查看产品说明书\n2. 确保正确连接和设置\n3. 按照操作指南进行\n4. 注意安全事项\n\n如有具体操作问题，请详细描述或上传图片，我会为您提供指导。技术支持热线：400-888-6666';
+      return `关于产品使用方法：\n\n1. 请先查看产品说明书\n2. 确保正确连接和设置\n3. 按照操作指南进行\n4. 注意安全事项\n\n如有具体操作问题，请详细描述或上传图片，我会为您提供指导。技术支持热线：${supportPhone}`;
     }
     
     if (lowerPrompt.includes('维护') || lowerPrompt.includes('保养') || lowerPrompt.includes('maintenance')) {
-      return '产品维护保养建议：\n\n1. 定期清洁产品表面\n2. 检查连接部件是否松动\n3. 避免在恶劣环境中使用\n4. 按照保养周期进行维护\n\n具体维护方法请参考说明书，或联系技术支持：400-888-6666';
+      return `产品维护保养建议：\n\n1. 定期清洁产品表面\n2. 检查连接部件是否松动\n3. 避免在恶劣环境中使用\n4. 按照保养周期进行维护\n\n具体维护方法请参考说明书，或联系技术支持：${supportPhone}`;
     }
     
     // 默认响应
-    return `您好！我是智能售后客服助手。\n\n关于您的问题"${promptStr}"，我需要更多信息来为您提供准确的解答。请您：\n\n1. 详细描述问题情况\n2. 提供产品型号\n3. 上传相关图片\n\n这样我能更好地为您服务。如需人工客服，请拨打：400-888-6666\n\n官网：www.aivirtualservice.com`;
+    return `您好！我是智能售后客服助手。\n\n关于您的问题"${promptStr}"，我需要更多信息来为您提供准确的解答。请您：\n\n1. 详细描述问题情况\n2. 提供产品型号\n3. 上传相关图片\n\n这样我能更好地为您服务。如需人工客服，请拨打：${supportPhone}\n\n官网：${supportWebsite}`;
   }
 
   // 模拟图片分析（当没有API密钥时使用）
-  private generateMockImageAnalysis(prompt: string): string {
-    return `图片分析功能需要AI服务支持。\n\n我看到您上传了图片，但目前AI视觉分析服务需要配置。\n\n请您：\n1. 详细描述图片中的问题\n2. 说明产品型号和使用情况\n3. 联系技术支持获得专业分析\n\n中恒创世技术支持：\n📞 400-888-6666\n🌐 www.aivirtualservice.com\n\n我们的技术专家会为您提供详细的图片分析和解决方案。`;
+  private generateMockImageAnalysis(prompt: string, projectConfig?: any): string {
+    const supportPhone = projectConfig?.supportPhone || '400-888-6666';
+    const supportWebsite = projectConfig?.supportWebsite || 'www.aivirtualservice.com';
+    const companyName = projectConfig?.companyName || '中恒创世';
+    
+    return `图片分析功能需要AI服务支持。\n\n我看到您上传了图片，但目前AI视觉分析服务需要配置。\n\n请您：\n1. 详细描述图片中的问题\n2. 说明产品型号和使用情况\n3. 联系技术支持获得专业分析\n\n${companyName}技术支持：\n📞 ${supportPhone}\n🌐 ${supportWebsite}\n\n我们的技术专家会为您提供详细的图片分析和解决方案。`;
   }
 
   // 模拟语音识别（当没有API密钥时使用）
-  private generateMockSpeechRecognition(): string {
-    return '语音识别功能需要AI服务支持，请使用文字输入或联系人工客服：400-888-6666';
+  private generateMockSpeechRecognition(projectConfig?: any): string {
+    const supportPhone = projectConfig?.supportPhone || '400-888-6666';
+    return `语音识别功能需要AI服务支持，请使用文字输入或联系人工客服：${supportPhone}`;
   }
 
   // OCR服务：手写体识别
@@ -1297,7 +1299,6 @@ export class AIService {
       formData.append('language_type', options?.languageType || 'CHN_ENG');
       formData.append('probability', String(options?.probability || false));
 
-      console.log('Sending OCR request to Vercel Serverless Function...');
       const response = await fetch('/api/ocr', {
         method: 'POST',
         body: formData,
@@ -1315,7 +1316,6 @@ export class AIService {
       }
 
       const result = await response.json();
-      console.log('OCR response:', result);
       return result;
     } catch (error) {
       console.error('OCR request failed:', error);

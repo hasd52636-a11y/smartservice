@@ -110,8 +110,9 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         // 直接更新状态，避免setTimeout可能导致的问题
         setProject(validatedProject);
         
-        // 初始化messages状态 - 优化为售后客服定位
-        const welcomeMessage = `您好！我是 ${validatedProject.name} 的智能售后客服助手 🤖\n\n我可以帮您解决：\n• 产品使用问题\n• 安装指导\n• 故障排查\n• 维护保养\n\n请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`;
+        // 初始化messages状态 - 使用项目配置的欢迎语或默认欢迎语
+        const welcomeMessage = validatedProject.config.welcomeMessage || 
+          `您好！我是 ${validatedProject.name} 的智能售后客服助手 🤖\n\n我可以帮您解决：\n• 产品使用问题\n• 安装指导\n• 故障排查\n• 维护保养\n\n请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`;
         setMessages([
           { 
             role: 'assistant', 
@@ -252,19 +253,13 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
 
   const initializeVideoChat = async () => {
     try {
-      console.log('开始初始化视频聊天...');
-      
       // 确保API密钥已设置（如果存在的话）
       const savedApiKey = localStorage.getItem('zhipuApiKey');
       if (savedApiKey) {
         aiService.setZhipuApiKey(savedApiKey);
-        console.log('API密钥已设置');
-      } else {
-        console.log('未找到API密钥，将使用基础功能');
       }
       
       // Request camera and microphone permissions
-      console.log('请求摄像头和麦克风权限...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
@@ -274,26 +269,20 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         audio: true
       });
       
-      console.log('获取到媒体流:', stream);
       setVideoStream(stream);
       videoStreamRef.current = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        console.log('视频流已设置到video元素');
       }
       
       // Connect to GLM-Realtime (如果有API密钥的话)
       if (savedApiKey) {
-        console.log('连接到GLM-Realtime...');
         const connected = await connectToRealtime();
         
         if (connected) {
           // Start render loop for annotations
-          console.log('启动标注渲染循环...');
           startRenderLoop();
-          
-          console.log('视频聊天初始化完成');
           setIsVideoChatActive(true);
         } else {
           console.error('GLM-Realtime连接失败，使用基础视频功能');
@@ -301,7 +290,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           setIsVideoChatActive(true);
         }
       } else {
-        console.log('无API密钥，启用基础视频功能');
         setMessages(prev => [...prev, { role: 'assistant', text: '视频聊天已启动。AI实时功能需要配置，当前可使用基础视频功能。' }]);
         setIsVideoChatActive(true);
       }
@@ -324,11 +312,8 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   const connectToRealtime = async (): Promise<boolean> => {
     return new Promise((resolve) => {
       const callback: RealtimeCallback = (data, type) => {
-        console.log('收到GLM-Realtime消息:', type, data);
-        
         switch (type) {
           case 'status':
-            console.log('连接状态更新:', data.status);
             setConnectionStatus(data.status || 'disconnected');
             setIsConnected(data.status === 'connected');
             if (data.status === 'connected') {
@@ -340,11 +325,10 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             break;
           case 'text':
             if (data.type === 'content_part_done') {
-              console.log('Content part completed:', data.part);
+              // Content part completed
             } else if (data.type === 'function_call_done') {
-              console.log('Function call completed:', data.function_name, data.function_arguments);
+              // Function call completed
             } else if (data.text) {
-              console.log('收到文本消息:', data.text);
               setMessages(prev => [...prev, { role: 'assistant', text: data.text }]);
               
               // Update avatar state
@@ -377,9 +361,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         }
       };
       
-      console.log('开始连接GLM-Realtime...');
       aiService.connectToRealtime(callback).then(success => {
-        console.log('GLM-Realtime连接结果:', success);
         resolve(success);
       }).catch(error => {
         console.error('GLM-Realtime连接异常:', error);
@@ -504,7 +486,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
 
   const handleVideoData = (data: any) => {
     // Handle video data from server
-    console.log('Received video data:', data);
   };
 
   const toggleVideo = () => {
@@ -639,7 +620,8 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
               project.config.systemInstruction,
               {
                 stream: true,
-                callback: streamCallback
+                callback: streamCallback,
+                projectConfig: project.config // 传递项目配置
               }
             ),
             timeoutPromise
@@ -690,7 +672,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         const audio = new Audio(`data:audio/wav;base64,${audioData}`);
         audio.play();
       } else {
-        console.log('语音合成服务需要配置');
         // 不显示错误消息，静默处理
       }
     } catch (error) {
@@ -716,9 +697,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       const savedApiKey = localStorage.getItem('zhipuApiKey');
       if (savedApiKey) {
         aiService.setZhipuApiKey(savedApiKey);
-        console.log('API密钥已设置');
-      } else {
-        console.log('未找到API密钥，语音识别功能将受限');
       }
       
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -885,7 +863,6 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       const savedApiKey = localStorage.getItem('zhipuApiKey');
       if (savedApiKey) {
         aiService.setZhipuApiKey(savedApiKey);
-        console.log('API密钥已设置');
       }
       
       try {

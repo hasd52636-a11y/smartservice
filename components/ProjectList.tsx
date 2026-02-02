@@ -85,7 +85,6 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, onAdd, onToggleStat
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('Toggle status clicked for project:', project.id);
                         onToggleStatus?.(project.id);
                       }}
                       className={`p-2 rounded-xl transition-all relative z-20 ${
@@ -103,7 +102,6 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, onAdd, onToggleStat
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('Delete clicked for project:', project.id);
                         if (window.confirm(`确定要删除产品 "${project.name}" 吗？此操作不可撤销。`)) {
                           onDelete?.(project.id);
                         }

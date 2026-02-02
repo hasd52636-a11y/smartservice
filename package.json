@@ -13,7 +13,6 @@
     "vercel-build": "npm run build"
   },
   "dependencies": {
-    "@google/genai": "^1.38.0",
     "@tailwindcss/postcss": "^4.1.18",
     "autoprefixer": "^10.4.23",
     "lucide-react": "^0.475.0",
