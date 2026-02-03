@@ -146,8 +146,8 @@ export class LinkService {
     const shortCodes: string[] = [];
 
     for (let i = 0; i < this.maxLinksPerProject; i++) {
-      // 生成固定的shortCode，基于项目ID和索引，确保唯一性和稳定性
-      const shortCode = this.generateFixedShortCode(projectId, i);
+      // 使用确定性算法生成shortCode，确保永久不变
+      const shortCode = this.generateDeterministicShortCode(projectId, i);
       const complexPart = this.generateComplexString(96); // 更复杂的随机部分
       const projectKey = this.generateProjectKey(projectId); // 基于项目ID生成固定的密钥
       const sequenceId = i.toString().padStart(3, '0'); // 序列ID，确保顺序
@@ -183,13 +183,23 @@ export class LinkService {
     return links;
   }
 
-  // 基于项目ID和索引生成固定的shortCode
-  private generateFixedShortCode(projectId: string, index: number): string {
-    // 使用项目ID的哈希值加上索引，确保固定性
-    const hash = this.simpleHash(projectId);
-    const indexStr = index.toString().padStart(3, '0');
-    // 生成12位的shortCode
-    return `${hash.substring(0, 8)}${indexStr}`.substring(0, 12);
+  // 基于项目ID和索引生成确定性的shortCode（永久不变）
+  private generateDeterministicShortCode(projectId: string, index: number): string {
+    // 1. 创建基础盐值，确保不同索引生成的码不同
+    const salt = `${projectId}_index_${index}`;
+    
+    // 2. 使用简单哈希算法将字符串转为数字
+    let hash = 0;
+    for (let i = 0; i < salt.length; i++) {
+      hash = ((hash << 5) - hash) + salt.charCodeAt(i);
+      hash |= 0; // 转换为 32 位整数
+    }
+
+    // 3. 转换为 36 进制字符串（包含 0-9 和 a-z），取 10 位长度
+    // 使用 Math.abs 确保正数，padStart 确保长度对齐
+    const code = Math.abs(hash).toString(36).padStart(10, '0').substring(0, 10);
+    
+    return code.toUpperCase(); // 返回大写，增加扫码识别度
   }
 
   // 基于项目ID生成固定的项目密钥
@@ -209,10 +219,14 @@ export class LinkService {
     return Math.abs(hash).toString(36).padStart(12, '0');
   }
 
-  // 智能获取基础URL，适配不同部署环境
+  // 智能获取基础URL，适配不同部署环境（增强版）
   private getBaseUrl(): string {
     // 最高优先级：手动设置的自定义URL
     if (this.customBaseUrl) {
+      // 强制HTTPS协议（除非是localhost）
+      if (!this.customBaseUrl.includes('localhost') && this.customBaseUrl.startsWith('http://')) {
+        return this.customBaseUrl.replace('http://', 'https://');
+      }
       return this.customBaseUrl;
     }
     
@@ -221,10 +235,10 @@ export class LinkService {
       if (typeof window !== 'undefined' && (window as any).import?.meta?.env) {
         const env = (window as any).import.meta.env;
         if (env.VITE_APP_BASE_URL) {
-          return env.VITE_APP_BASE_URL;
+          return this.ensureHttps(env.VITE_APP_BASE_URL);
         }
         if (env.REACT_APP_BASE_URL) {
-          return env.REACT_APP_BASE_URL;
+          return this.ensureHttps(env.REACT_APP_BASE_URL);
         }
       }
     } catch (e) {
@@ -234,7 +248,7 @@ export class LinkService {
     // 尝试直接访问环境变量
     try {
       if ((globalThis as any).VITE_APP_BASE_URL) {
-        return (globalThis as any).VITE_APP_BASE_URL;
+        return this.ensureHttps((globalThis as any).VITE_APP_BASE_URL);
       }
     } catch (e) {
       console.error('Error accessing globalThis:', e);
@@ -254,13 +268,13 @@ export class LinkService {
         baseUrl += `:${port}`;
       }
       
-      return baseUrl;
+      return this.ensureHttps(baseUrl);
     }
     
     // 从Node.js环境变量获取
     if (typeof process !== 'undefined' && process.env) {
       if (process.env.BASE_URL) {
-        return process.env.BASE_URL;
+        return this.ensureHttps(process.env.BASE_URL);
       }
       if (process.env.VERCEL_URL) {
         return `https://${process.env.VERCEL_URL}`;
@@ -269,6 +283,14 @@ export class LinkService {
     
     // 硬编码生产域名作为备用方案
     return 'https://sora.wboke.com';
+  }
+
+  // 确保使用HTTPS协议（除非是localhost）
+  private ensureHttps(url: string): string {
+    if (!url.includes('localhost') && url.startsWith('http://')) {
+      return url.replace('http://', 'https://');
+    }
+    return url;
   }
 
   // 链接状态管理配置

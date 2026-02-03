@@ -65,97 +65,6 @@ class ProjectService {
         ],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'proj_1',
-        name: 'SmartHome Pro Hub',
-        description: 'Next-gen automation controller for modern homes. 下一代智能家居控制器。',
-        status: ProjectStatus.ACTIVE,
-        config: {
-          provider: AIProvider.ZHIPU,
-          voiceName: 'tongtong',
-          visionEnabled: true,
-          visionPrompt: 'Check if all cables are plugged in and the LED is glowing green.',
-          systemInstruction: 'You are a technical support expert for SmartHome Pro products.',
-          videoGuides: [],
-          multimodalEnabled: true,
-          videoChatEnabled: true,
-          videoChatPrompt: '您是中恒创世科技SmartHome Pro系列产品的专业技术支持专家。请仔细分析用户提供的视频内容，识别智能家居设备使用或安装过程中的具体问题，并基于产品知识库提供准确的解决方案。\n\n分析重点：\n1. 设备型号识别与兼容性确认\n2. 网络连接状态与信号强度\n3. 安装位置与环境适配性\n4. 设备配对与同步状态\n5. 操作界面与功能设置\n6. 电源供应与线路安全\n\n回复要求：\n- 使用专业但易懂的语言\n- 提供具体的操作步骤\n- 标注重要的安全注意事项\n- 如需更换配件，请说明具体型号\n- 优先引用官方知识库内容\n- 必要时建议联系中恒创世技术支持热线',
-          avatarEnabled: true,
-          annotationEnabled: true,
-          // 默认联系信息
-          companyName: '中恒创世',
-          supportPhone: '400-888-6666',
-          supportWebsite: 'www.aivirtualservice.com',
-          wechatAccount: 'AI虚拟客服助手'
-        },
-        knowledgeBase: [
-          { 
-            id: 'k1', 
-            title: 'Initial Setup', 
-            type: KnowledgeType.TEXT, 
-            content: 'Plug in the device and wait 60 seconds.', 
-            createdAt: new Date().toISOString() 
-          },
-          { 
-            id: 'k2', 
-            title: 'Connection Guide', 
-            type: KnowledgeType.TEXT, 
-            content: '1. Download the SmartHome app\n2. Create an account\n3. Follow the in-app setup instructions', 
-            createdAt: new Date().toISOString() 
-          },
-          { 
-            id: 'k3', 
-            title: 'Troubleshooting', 
-            type: KnowledgeType.TEXT, 
-            content: 'If the device is not responding, try resetting it by pressing and holding the reset button for 10 seconds.', 
-            createdAt: new Date().toISOString() 
-          }
-        ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'proj_2',
-        name: 'SmartThermostat',
-        description: 'Intelligent temperature control system. 智能温度控制系统。',
-        status: ProjectStatus.ACTIVE,
-        config: {
-          provider: AIProvider.ZHIPU,
-          voiceName: 'tongtong',
-          visionEnabled: false,
-          visionPrompt: '',
-          systemInstruction: 'You are a helpful assistant for SmartThermostat users.',
-          videoGuides: [],
-          multimodalEnabled: true,
-          videoChatEnabled: true,
-          videoChatPrompt: '您是中恒创世科技SmartThermostat智能温控系统的专业技术支持专家。请仔细分析用户提供的视频内容，识别温控设备使用或安装过程中的具体问题，并基于产品知识库提供准确的解决方案。\n\n分析重点：\n1. 温控器安装位置与环境条件\n2. 线路连接与电气安全\n3. 温度传感器工作状态\n4. 系统设置与程序配置\n5. 显示屏状态与用户界面\n6. 节能模式与时间设定\n\n回复要求：\n- 使用专业但易懂的语言\n- 提供具体的操作步骤\n- 特别注意电气安全提醒\n- 如需调整参数，请说明具体数值\n- 优先引用官方知识库内容\n- 必要时建议联系中恒创世技术支持热线',
-          avatarEnabled: true,
-          annotationEnabled: true,
-          // 默认联系信息
-          companyName: '中恒创世',
-          supportPhone: '400-888-6666',
-          supportWebsite: 'www.aivirtualservice.com',
-          wechatAccount: 'AI虚拟客服助手'
-        },
-        knowledgeBase: [
-          { 
-            id: 'k1', 
-            title: 'Installation', 
-            type: KnowledgeType.TEXT, 
-            content: 'Mount the thermostat on the wall and connect the wires according to the diagram.', 
-            createdAt: new Date().toISOString() 
-          },
-          { 
-            id: 'k2', 
-            title: 'Usage Tips', 
-            type: KnowledgeType.TEXT, 
-            content: 'Set different temperatures for day and night to save energy.', 
-            createdAt: new Date().toISOString() 
-          }
-        ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
       }
     ];
 
@@ -241,13 +150,48 @@ class ProjectService {
 
   // 根据projectId获取项目（用户扫码时调用）
   public async getProjectById(projectId: string): Promise<ProductProject | null> {
-    // 模拟异步数据库查询
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const project = this.projects.get(projectId);
-        resolve(project || null);
-      }, 100);
-    });
+    // 优先从本地缓存获取
+    const localProject = this.projects.get(projectId);
+    if (localProject) {
+      return localProject;
+    }
+
+    // 如果本地没有，尝试从云端获取
+    return this.fetchProjectFromCloud(projectId);
+  }
+
+  // 从云端获取项目配置（新增方法）
+  public async fetchProjectFromCloud(projectId: string): Promise<ProductProject | null> {
+    try {
+      const response = await fetch(`/api/project/${projectId}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn(`Project ${projectId} not found in cloud`);
+          return null;
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.valid && result.project) {
+        // 缓存到本地存储
+        this.projects.set(projectId, result.project);
+        this.syncToLocalStorage();
+        return result.project;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Failed to fetch project from cloud:', error);
+      return null;
+    }
+  }
+
+  // 云端同步项目配置
+  public async syncFromCloud(projectId: string): Promise<ProductProject | null> {
+    return this.fetchProjectFromCloud(projectId);
   }
 
   // 获取所有项目（商家后台使用）

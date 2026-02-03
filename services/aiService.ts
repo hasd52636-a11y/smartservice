@@ -152,8 +152,19 @@ export class AIService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // 智谱API请求 - 支持后端代理模式（兼容现有路径）
   private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false, retryCount: number = 0) {
     try {
+      // 对于chat/completions，优先尝试新的代理路径，失败时回退到原路径
+      if (endpoint === '/chat/completions') {
+        try {
+          return await this.proxyFetch(body, isBinary);
+        } catch (proxyError) {
+          console.warn('New proxy failed, falling back to original path:', proxyError);
+          // 继续使用原有的zhipu路径
+        }
+      }
+
       // 获取API密钥
       const apiKey = this.getZhipuApiKey();
       if (!apiKey) {
@@ -204,6 +215,36 @@ export class AIService {
         return this.zhipuFetch(endpoint, body, isBinary, retryCount + 1);
       }
       
+      throw error;
+    }
+  }
+
+  // 后端代理请求（推荐用于生产环境）
+  private async proxyFetch(body: any, isBinary: boolean = false) {
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: body.messages,
+          projectId: body.projectId || 'default',
+          stream: body.stream || false,
+          model: body.model,
+          temperature: body.temperature,
+          max_tokens: body.max_tokens
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return isBinary ? response.arrayBuffer() : response.json();
+    } catch (error) {
+      console.error('Proxy API request failed:', error);
       throw error;
     }
   }
@@ -481,7 +522,8 @@ export class AIService {
         max_tokens: options?.maxTokens || 1024,
         stream: options?.stream || false,
         tools: options?.tools,
-        response_format: options?.responseFormat
+        response_format: options?.responseFormat,
+        projectId: options?.projectConfig?.id || 'default' // 添加项目ID用于后端代理
       };
 
       if (options?.stream && options?.callback) {

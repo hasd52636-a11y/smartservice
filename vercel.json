@@ -14,9 +14,24 @@
       "config": {
         "maxDuration": 60
       }
+    },
+    {
+      "src": "api/**/*.ts",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60
+      }
     }
   ],
   "routes": [
+    {
+      "src": "/api/chat",
+      "dest": "/api/chat.ts"
+    },
+    {
+      "src": "/api/project/(.*)",
+      "dest": "/api/project/[id].ts"
+    },
     {
       "src": "/api/zhipu/(.*)",
       "dest": "/api/zhipu/[...endpoint].js"

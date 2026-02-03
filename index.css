@@ -9,3 +9,23 @@
   --gold-glow: rgba(245, 158, 11, 0.3);
   --purple-glow: rgba(124, 58, 237, 0.4);
 }
+
+/* Glass card effect */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+}
+
+/* Purple gradient button */
+.purple-gradient-btn {
+  background: linear-gradient(135deg, var(--purple-primary), #a855f7);
+  box-shadow: 0 4px 15px var(--purple-glow);
+  transition: all 0.3s ease;
+}
+
+.purple-gradient-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px var(--purple-glow);
+}

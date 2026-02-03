@@ -4,13 +4,14 @@ import { ProductProject, KnowledgeType, KnowledgeItem, VideoGuide } from '../typ
 import { 
   ArrowLeft, Save, Trash2, FileText, QrCode, 
   ShieldCheck, Video, Globe, Sparkles, Download, 
-  ExternalLink, Upload, FileUp, X, CheckCircle, Volume2,
+  ExternalLink, Upload, FileUp, X, CheckCircle, Check, Volume2,
   Camera, MessageSquare, Phone, Palette, Type, Image as ImageIcon,
   Smile, Settings, Monitor, Paintbrush
 } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { linkService } from '../services/linkService';
 import QRCodeSection from './QRCodeSection';
+// import UICustomizer from './UICustomizer'; // 暂时注释掉
 
 interface ProjectDetailProps {
   projects: ProductProject[];
@@ -346,6 +347,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
           active={activeTab === 'knowledge'} 
           onClick={setActiveTab} 
           icon={<FileText size={20}/>} 
+          number="1"
         />
         <TabButton 
           id="video" 
@@ -354,6 +356,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
           active={activeTab === 'video'} 
           onClick={setActiveTab} 
           icon={<Video size={20}/>} 
+          number="2"
         />
         <TabButton 
           id="customize" 
@@ -362,6 +365,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
           active={activeTab === 'customize'} 
           onClick={setActiveTab} 
           icon={<Sparkles size={20}/>} 
+          number="3"
         />
         <TabButton 
           id="config" 
@@ -370,6 +374,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
           active={activeTab === 'config'} 
           onClick={setActiveTab} 
           icon={<MessageSquare size={20}/>} 
+          number="4"
         />
         <TabButton 
           id="qr" 
@@ -378,6 +383,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
           active={activeTab === 'qr'} 
           onClick={setActiveTab} 
           icon={<QrCode size={20}/>} 
+          number="5"
         />
       </div>
 
@@ -627,571 +633,175 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
 
           {activeTab === 'customize' && (
             <div className="space-y-8">
-              {/* 个性化设置标题 */}
-              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
-                <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                  <Palette className="text-purple-600" size={28} />
-                  个性化设置
-                </h3>
-                <p className="text-slate-600 mb-6">自定义用户对话页面的外观和体验</p>
-                
-                {/* 预览开关 */}
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl mb-6">
-                  <div>
-                    <h4 className="font-bold text-slate-800">实时预览</h4>
-                    <p className="text-xs text-slate-600">开启后可以实时查看设置效果</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={customizationPreview}
-                      onChange={(e) => setCustomizationPreview(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                  </label>
+              {/* 主标题 */}
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <Palette className="text-purple-600" size={32} />
+                  <h2 className="text-3xl font-bold text-slate-800">个性化主题</h2>
                 </div>
+                <p className="text-slate-600">选择您喜欢的对话界面主题，点击即可应用</p>
               </div>
 
-              {/* 背景设置 */}
+              {/* 主题模板选择 - 一排五个 */}
               <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
-                <h4 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                  <Monitor className="text-blue-600" size={24} />
-                  背景设置
-                </h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* 背景类型 */}
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-3">背景类型</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { value: 'color', label: '纯色', icon: '🎨' },
-                        { value: 'gradient', label: '渐变', icon: '🌈' },
-                        { value: 'image', label: '图片', icon: '🖼️' }
-                      ].map((type) => (
-                        <button
-                          key={type.value}
-                          onClick={() => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  backgroundType: type.value as any
-                                }
-                              }
-                            };
-                            autoSave(updated);
-                          }}
-                          className={`p-3 rounded-xl border-2 text-center transition-all ${
-                            localProject.config.uiCustomization?.backgroundType === type.value
-                              ? 'border-purple-500 bg-purple-50 text-purple-700'
-                              : 'border-slate-200 hover:border-purple-300'
-                          }`}
-                        >
-                          <div className="text-lg mb-1">{type.icon}</div>
-                          <div className="text-xs font-medium">{type.label}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 背景颜色 */}
-                  {localProject.config.uiCustomization?.backgroundType === 'color' && (
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-3">背景颜色</label>
-                      <input
-                        type="color"
-                        value={localProject.config.uiCustomization?.backgroundColor || '#f8fafc'}
-                        onChange={(e) => {
-                          const updated = {
-                            ...localProject,
-                            config: {
-                              ...localProject.config,
-                              uiCustomization: {
-                                ...localProject.config.uiCustomization!,
-                                backgroundColor: e.target.value
-                              }
-                            }
-                          };
-                          autoSave(updated);
-                        }}
-                        className="w-full h-12 rounded-xl border-2 border-slate-200 cursor-pointer"
-                      />
-                    </div>
-                  )}
-
-                  {/* 渐变设置 */}
-                  {localProject.config.uiCustomization?.backgroundType === 'gradient' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-3">起始颜色</label>
-                        <input
-                          type="color"
-                          value={localProject.config.uiCustomization?.backgroundGradient?.from || '#f1f5f9'}
-                          onChange={(e) => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  backgroundGradient: {
-                                    ...localProject.config.uiCustomization!.backgroundGradient,
-                                    from: e.target.value
-                                  }
-                                }
-                              }
-                            };
-                            autoSave(updated);
-                          }}
-                          className="w-full h-12 rounded-xl border-2 border-slate-200 cursor-pointer"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-3">结束颜色</label>
-                        <input
-                          type="color"
-                          value={localProject.config.uiCustomization?.backgroundGradient?.to || '#e2e8f0'}
-                          onChange={(e) => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  backgroundGradient: {
-                                    ...localProject.config.uiCustomization!.backgroundGradient,
-                                    to: e.target.value
-                                  }
-                                }
-                              }
-                            };
-                            autoSave(updated);
-                          }}
-                          className="w-full h-12 rounded-xl border-2 border-slate-200 cursor-pointer"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* 字体设置 */}
-              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
-                <h4 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                  <Type className="text-green-600" size={24} />
-                  字体设置
-                </h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* 字体大小 */}
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-3">字体大小</label>
-                    <select
-                      value={localProject.config.uiCustomization?.fontSize || 'base'}
-                      onChange={(e) => {
-                        const updated = {
-                          ...localProject,
-                          config: {
-                            ...localProject.config,
-                            uiCustomization: {
-                              ...localProject.config.uiCustomization!,
-                              fontSize: e.target.value as any
-                            }
-                          }
-                        };
-                        autoSave(updated);
-                      }}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
-                    >
-                      <option value="xs">极小 (12px)</option>
-                      <option value="sm">小 (14px)</option>
-                      <option value="base">标准 (16px)</option>
-                      <option value="lg">大 (18px)</option>
-                      <option value="xl">极大 (20px)</option>
-                    </select>
-                  </div>
-
-                  {/* 字体粗细 */}
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-3">字体粗细</label>
-                    <select
-                      value={localProject.config.uiCustomization?.fontWeight || 'normal'}
-                      onChange={(e) => {
-                        const updated = {
-                          ...localProject,
-                          config: {
-                            ...localProject.config,
-                            uiCustomization: {
-                              ...localProject.config.uiCustomization!,
-                              fontWeight: e.target.value as any
-                            }
-                          }
-                        };
-                        autoSave(updated);
-                      }}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
-                    >
-                      <option value="normal">正常</option>
-                      <option value="medium">中等</option>
-                      <option value="semibold">半粗</option>
-                      <option value="bold">粗体</option>
-                    </select>
-                  </div>
-
-                  {/* 文字颜色 */}
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-3">文字颜色</label>
-                    <input
-                      type="color"
-                      value={localProject.config.uiCustomization?.textColor || '#1e293b'}
-                      onChange={(e) => {
-                        const updated = {
-                          ...localProject,
-                          config: {
-                            ...localProject.config,
-                            uiCustomization: {
-                              ...localProject.config.uiCustomization!,
-                              textColor: e.target.value
-                            }
-                          }
-                        };
-                        autoSave(updated);
-                      }}
-                      className="w-full h-12 rounded-xl border-2 border-slate-200 cursor-pointer"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 对话框设置 */}
-              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
-                <h4 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                  <MessageSquare className="text-orange-600" size={24} />
-                  对话框设置
-                </h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* 用户消息样式 */}
-                  <div className="space-y-4">
-                    <h5 className="font-bold text-slate-700">用户消息</h5>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-2">背景颜色</label>
-                      <input
-                        type="color"
-                        value={localProject.config.uiCustomization?.userMessageBg || '#3b82f6'}
-                        onChange={(e) => {
-                          const updated = {
-                            ...localProject,
-                            config: {
-                              ...localProject.config,
-                              uiCustomization: {
-                                ...localProject.config.uiCustomization!,
-                                userMessageBg: e.target.value
-                              }
-                            }
-                          };
-                          autoSave(updated);
-                        }}
-                        className="w-full h-10 rounded-lg border border-slate-200 cursor-pointer"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-2">文字颜色</label>
-                      <input
-                        type="color"
-                        value={localProject.config.uiCustomization?.userMessageText || '#ffffff'}
-                        onChange={(e) => {
-                          const updated = {
-                            ...localProject,
-                            config: {
-                              ...localProject.config,
-                              uiCustomization: {
-                                ...localProject.config.uiCustomization!,
-                                userMessageText: e.target.value
-                              }
-                            }
-                          };
-                          autoSave(updated);
-                        }}
-                        className="w-full h-10 rounded-lg border border-slate-200 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  {/* AI消息样式 */}
-                  <div className="space-y-4">
-                    <h5 className="font-bold text-slate-700">AI消息</h5>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-2">背景颜色</label>
-                      <input
-                        type="color"
-                        value={localProject.config.uiCustomization?.aiMessageBg || '#f1f5f9'}
-                        onChange={(e) => {
-                          const updated = {
-                            ...localProject,
-                            config: {
-                              ...localProject.config,
-                              uiCustomization: {
-                                ...localProject.config.uiCustomization!,
-                                aiMessageBg: e.target.value
-                              }
-                            }
-                          };
-                          autoSave(updated);
-                        }}
-                        className="w-full h-10 rounded-lg border border-slate-200 cursor-pointer"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-600 mb-2">文字颜色</label>
-                      <input
-                        type="color"
-                        value={localProject.config.uiCustomization?.aiMessageText || '#1e293b'}
-                        onChange={(e) => {
-                          const updated = {
-                            ...localProject,
-                            config: {
-                              ...localProject.config,
-                              uiCustomization: {
-                                ...localProject.config.uiCustomization!,
-                                aiMessageText: e.target.value
-                              }
-                            }
-                          };
-                          autoSave(updated);
-                        }}
-                        className="w-full h-10 rounded-lg border border-slate-200 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 圆角设置 */}
-                <div className="mt-6">
-                  <label className="block text-sm font-bold text-slate-700 mb-3">消息框圆角</label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {[
-                      { value: 'none', label: '无' },
-                      { value: 'sm', label: '小' },
-                      { value: 'md', label: '中' },
-                      { value: 'lg', label: '大' },
-                      { value: 'full', label: '圆形' }
-                    ].map((radius) => (
-                      <button
-                        key={radius.value}
-                        onClick={() => {
-                          const updated = {
-                            ...localProject,
-                            config: {
-                              ...localProject.config,
-                              uiCustomization: {
-                                ...localProject.config.uiCustomization!,
-                                messageBorderRadius: radius.value as any
-                              }
-                            }
-                          };
-                          autoSave(updated);
-                        }}
-                        className={`p-3 rounded-xl border-2 text-center transition-all ${
-                          localProject.config.uiCustomization?.messageBorderRadius === radius.value
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-slate-200 hover:border-orange-300'
-                        }`}
-                      >
-                        <div className="text-xs font-medium">{radius.label}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* 头像设置 */}
-              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
-                <h4 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                  <Smile className="text-pink-600" size={24} />
-                  头像设置
-                </h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* 用户头像 */}
-                  <div>
-                    <h5 className="font-bold text-slate-700 mb-4">用户头像</h5>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-2">头像类型</label>
-                        <select
-                          value={localProject.config.uiCustomization?.userAvatar?.type || 'emoji'}
-                          onChange={(e) => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  userAvatar: {
-                                    ...localProject.config.uiCustomization!.userAvatar,
-                                    type: e.target.value as any
-                                  }
-                                }
-                              }
-                            };
-                            autoSave(updated);
-                          }}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                        >
-                          <option value="emoji">表情符号</option>
-                          <option value="initials">姓名首字母</option>
-                          <option value="image">自定义图片</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-2">
-                          {localProject.config.uiCustomization?.userAvatar?.type === 'emoji' ? '表情符号' : 
-                           localProject.config.uiCustomization?.userAvatar?.type === 'initials' ? '显示文字' : '图片URL'}
-                        </label>
-                        <input
-                          type="text"
-                          value={localProject.config.uiCustomization?.userAvatar?.value || '👤'}
-                          onChange={(e) => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  userAvatar: {
-                                    ...localProject.config.uiCustomization!.userAvatar,
-                                    value: e.target.value
-                                  }
-                                }
-                              }
-                            };
-                            autoSave(updated);
-                          }}
-                          placeholder={localProject.config.uiCustomization?.userAvatar?.type === 'emoji' ? '👤' : 
-                                     localProject.config.uiCustomization?.userAvatar?.type === 'initials' ? 'U' : 'https://...'}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AI头像 */}
-                  <div>
-                    <h5 className="font-bold text-slate-700 mb-4">AI头像</h5>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-2">头像类型</label>
-                        <select
-                          value={localProject.config.uiCustomization?.aiAvatar?.type || 'emoji'}
-                          onChange={(e) => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  aiAvatar: {
-                                    ...localProject.config.uiCustomization!.aiAvatar,
-                                    type: e.target.value as any
-                                  }
-                                }
-                              }
-                            };
-                            autoSave(updated);
-                          }}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                        >
-                          <option value="emoji">表情符号</option>
-                          <option value="initials">姓名首字母</option>
-                          <option value="image">自定义图片</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-2">
-                          {localProject.config.uiCustomization?.aiAvatar?.type === 'emoji' ? '表情符号' : 
-                           localProject.config.uiCustomization?.aiAvatar?.type === 'initials' ? '显示文字' : '图片URL'}
-                        </label>
-                        <input
-                          type="text"
-                          value={localProject.config.uiCustomization?.aiAvatar?.value || '🤖'}
-                          onChange={(e) => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  aiAvatar: {
-                                    ...localProject.config.uiCustomization!.aiAvatar,
-                                    value: e.target.value
-                                  }
-                                }
-                              }
-                            };
-                            autoSave(updated);
-                          }}
-                          placeholder={localProject.config.uiCustomization?.aiAvatar?.type === 'emoji' ? '🤖' : 
-                                     localProject.config.uiCustomization?.aiAvatar?.type === 'initials' ? 'AI' : 'https://...'}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 功能开关 */}
-              <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
-                <h4 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                  <Settings className="text-indigo-600" size={24} />
-                  功能开关
-                </h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-5 gap-6">
                   {[
-                    { key: 'enableEmojis', label: '表情符号支持', desc: '允许用户发送表情符号' },
-                    { key: 'enableImageUpload', label: '图片上传', desc: '允许用户上传图片' },
-                    { key: 'enableVoiceMessage', label: '语音消息', desc: '支持语音输入和播放' },
-                    { key: 'enableAnimations', label: '动画效果', desc: '启用界面动画效果' }
-                  ].map((feature) => (
-                    <div key={feature.key} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                      <div>
-                        <h5 className="font-bold text-slate-800">{feature.label}</h5>
-                        <p className="text-xs text-slate-600">{feature.desc}</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={localProject.config.uiCustomization?.[feature.key as keyof typeof localProject.config.uiCustomization] as boolean || false}
-                          onChange={(e) => {
-                            const updated = {
-                              ...localProject,
-                              config: {
-                                ...localProject.config,
-                                uiCustomization: {
-                                  ...localProject.config.uiCustomization!,
-                                  [feature.key]: e.target.checked
+                    { id: 'modern', name: '现代简约', icon: '✨', colors: ['#3b82f6', '#ffffff', '#f1f5f9'] },
+                    { id: 'dark', name: '深色主题', icon: '🌙', colors: ['#8b5cf6', '#1e293b', '#f1f5f9'] },
+                    { id: 'vibrant', name: '活力彩色', icon: '⚡', colors: ['#f59e0b', '#ffffff', '#92400e'] },
+                    { id: 'scifi', name: '科幻未来', icon: '🚀', colors: ['#00ffff', '#1a0033', '#00ffff'] },
+                    { id: 'crystal', name: '水晶透明', icon: '💎', colors: ['#0ea5e9', '#ffffff', '#0c4a6e'] },
+                    { id: 'festive', name: '喜庆红火', icon: '🧧', colors: ['#dc2626', '#fef2f2', '#7f1d1d'] },
+                    { id: 'ocean', name: '海滨度假', icon: '🏖️', colors: ['#0891b2', '#ffffff', '#164e63'] },
+                    { id: 'vangogh', name: '梵高印象', icon: '🎨', colors: ['#fbbf24', '#1e3a8a', '#fbbf24'] },
+                    { id: 'dream', name: '梦境幻想', icon: '🌙', colors: ['#a855f7', '#fdf4ff', '#581c87'] },
+                    { id: 'anime', name: '二次元', icon: '🌸', colors: ['#ec4899', '#fef7ff', '#831843'] }
+                  ].map((template) => {
+                    // 检查当前模板是否被选中
+                    const isSelected = localProject.config.uiCustomization?.selectedTheme === template.id;
+                    
+                    return (
+                      <div
+                        key={template.id}
+                        className={`relative p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                          isSelected 
+                            ? 'border-purple-500 bg-purple-50 shadow-lg scale-105' 
+                            : 'border-slate-200 hover:border-purple-300'
+                        }`}
+                        onClick={() => {
+                          // 应用主题逻辑 - 静默应用，无弹窗
+                          const updatedProject = {
+                            ...localProject,
+                            config: {
+                              ...localProject.config,
+                              uiCustomization: {
+                                ...localProject.config.uiCustomization,
+                                selectedTheme: template.id,
+                                primaryColor: template.colors[0],
+                                backgroundColor: template.colors[1],
+                                textColor: template.colors[2],
+                                backgroundType: 'gradient' as const,
+                                backgroundGradient: {
+                                  from: template.colors[1],
+                                  to: template.colors[0],
+                                  direction: 'to-br' as const
                                 }
                               }
-                            };
-                            autoSave(updated);
-                          }}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                      </label>
-                    </div>
-                  ))}
+                            }
+                          };
+                          autoSave(updatedProject);
+                        }}
+                      >
+                        {/* 选中标识 */}
+                        {isSelected && (
+                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center">
+                            <Check size={14} />
+                          </div>
+                        )}
+                        
+                        {/* 主题图标 */}
+                        <div className="text-center mb-4">
+                          <div className="text-4xl mb-2">{template.icon}</div>
+                          <h3 className={`font-bold text-sm ${isSelected ? 'text-purple-700' : 'text-slate-800'}`}>
+                            {template.name}
+                          </h3>
+                        </div>
+                        
+                        {/* 颜色预览 */}
+                        <div className="flex justify-center gap-1 mb-4">
+                          {template.colors.map((color, index) => (
+                            <div 
+                              key={index}
+                              className="w-4 h-4 rounded-full border border-white shadow-sm"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                        
+                        {/* 状态显示 */}
+                        <div className="text-center">
+                          {isSelected ? (
+                            <div className="flex items-center justify-center gap-2 text-purple-600">
+                              <Check size={16} />
+                              <span className="text-xs font-medium">已选中</span>
+                            </div>
+                          ) : (
+                            <button className="text-xs font-medium text-purple-600 hover:text-purple-700 px-4 py-2 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                              点击选择
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+
+              {/* 实时预览控制 */}
+              <div className="glass-card p-6 rounded-[3rem] border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xl font-bold text-slate-800">实时预览</h4>
+                    <p className="text-slate-600 mt-1">查看主题应用后的实际效果</p>
+                  </div>
+                  <button
+                    onClick={() => setCustomizationPreview(!customizationPreview)}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
+                      customizationPreview 
+                        ? 'bg-purple-600 text-white' 
+                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                    }`}
+                  >
+                    {customizationPreview ? '隐藏预览' : '显示预览'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 预览窗口 */}
+              {customizationPreview && (
+                <div className="glass-card p-8 rounded-[3rem] border border-slate-200">
+                  <h4 className="text-lg font-bold text-slate-800 mb-6 text-center">用户对话界面预览</h4>
+                  <div className="flex justify-center">
+                    <div className="w-full max-w-sm mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+                      <div className="bg-black/10 backdrop-blur-sm p-4 border-b border-white/10">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">AI</span>
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-sm">{localProject.name}</h3>
+                            <p className="text-xs opacity-70">智能客服</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="space-y-3">
+                          <div className="flex justify-start">
+                            <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm max-w-xs">
+                              您好！我是智能客服助手 🤖
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            <div className="bg-purple-600 text-white px-3 py-2 rounded-lg text-sm max-w-xs">
+                              你好，我想了解产品信息
+                            </div>
+                          </div>
+                          <div className="flex justify-start">
+                            <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm max-w-xs">
+                              好的，我来为您详细介绍产品功能
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 text-center mt-6">
+                    这是用户扫码后看到的实际界面效果
+                  </p>
+                </div>
+              )}
             </div>
           )}
-
           {activeTab === 'config' && (
             <div className="space-y-8">
               {/* API 密钥配置 */}
@@ -1720,6 +1330,59 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                     <p className="text-xs text-slate-600">严谨、高效的技术风格</p>
                   </button>
                 </div>
+                
+                {/* 应用配置按钮 */}
+                <div className="mt-8 p-6 bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl border border-violet-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <Sparkles className="text-violet-600" size={20} />
+                        应用配置到用户界面
+                      </h4>
+                      <p className="text-sm text-slate-600">
+                        将当前的系统配置（提示词、语音设置等）应用到用户对话界面，
+                        <br />确保移动端和电脑端都能看到最新的设置效果。
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // 强制更新项目配置，确保所有设置都被应用
+                        const updatedProject = {
+                          ...localProject,
+                          config: {
+                            ...localProject.config,
+                            // 确保配置被标记为已更新
+                            lastUpdated: new Date().toISOString(),
+                            // 强制刷新标识
+                            forceRefresh: Math.random().toString(36).substr(2, 9)
+                          }
+                        };
+                        
+                        // 保存到localStorage以确保立即生效
+                        try {
+                          const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+                          const projectIndex = projects.findIndex((p: any) => p.id === localProject.id);
+                          if (projectIndex !== -1) {
+                            projects[projectIndex] = updatedProject;
+                            localStorage.setItem('projects', JSON.stringify(projects));
+                          }
+                        } catch (error) {
+                          console.error('保存到localStorage失败:', error);
+                        }
+                        
+                        // 更新状态
+                        autoSave(updatedProject);
+                        
+                        // 显示成功提示
+                        alert('✅ 配置已成功应用到用户界面！\n\n用户扫码后将看到最新的设置效果，包括：\n• 系统提示词\n• 欢迎消息\n• 语音设置\n• UI主题配置');
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2"
+                    >
+                      <Save size={16} />
+                      立即应用配置
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1759,7 +1422,7 @@ const StatusRow = ({ label, value, color = "text-slate-800" }: any) => (
   </div>
 );
 
-const TabButton = ({ id, labelZh, labelEn, active, onClick, icon }: any) => (
+const TabButton = ({ id, labelZh, labelEn, active, onClick, icon, number }: any) => (
   <button 
     onClick={() => onClick(id)} 
     className={`flex items-center gap-3 px-8 py-3 rounded-[2rem] font-bold text-sm transition-all duration-500 ${
@@ -1768,6 +1431,11 @@ const TabButton = ({ id, labelZh, labelEn, active, onClick, icon }: any) => (
         : 'text-slate-600 hover:text-slate-900'
     }`}
   >
+    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+      active ? 'bg-white/20' : 'bg-slate-200'
+    }`}>
+      {number}
+    </div>
     {icon}
     <div className="flex flex-col items-start leading-none">
       <span className="text-[11px] font-black">{labelZh}</span>

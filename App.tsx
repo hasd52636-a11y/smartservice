@@ -56,6 +56,14 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
         setLoading(true);
         setError('');
         
+        // 增强的shortCode验证 - 正则校验长度和格式
+        const shortCodePattern = /^[A-Z0-9]{8,12}$/;
+        if (!shortCodePattern.test(shortCode)) {
+          setError('链接格式不正确，请检查二维码是否完整');
+          setLoading(false);
+          return;
+        }
+        
         // 强制初始化项目服务（确保数据加载）
         const allProjects = await projectService.getAllProjects();
         
