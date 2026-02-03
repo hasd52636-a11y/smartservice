@@ -282,16 +282,25 @@ export class LinkService {
 
   // 链接状态记录
   private linkStates: Map<string, { active: boolean; lastUsed: number }> = new Map();
+  private cleanupIntervalId: NodeJS.Timeout | null = null; // 添加清理定时器ID
 
   // 初始化状态管理
   private initializeStateManagement() {
     // 从存储加载链接状态
     this.loadLinkStates();
     
-    // 设置定期清理任务
-    setInterval(() => {
+    // 设置定期清理任务，并保存定时器ID以便清理
+    this.cleanupIntervalId = setInterval(() => {
       this.cleanupExpiredLinks();
     }, this.linkStateConfig.cleanupInterval);
+  }
+
+  // 清理资源的方法
+  public destroy(): void {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
   }
 
   // 加载链接状态

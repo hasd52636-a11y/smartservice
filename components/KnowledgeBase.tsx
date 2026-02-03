@@ -698,7 +698,13 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
     }
   };
 
-  // 添加新文档
+  // 删除文档
+  const deleteDocument = (id: string) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== id));
+    showMessage('success', '文档删除成功');
+  };
+
+  // 添加新文档 - 修复点：入库即计算向量
   const addDocument = async () => {
     if (!newDocument.title || !newDocument.content) {
       showMessage('error', '请填写文档标题和内容');
@@ -707,54 +713,41 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
 
     setUploadProgress(0);
     setUploadStatus('正在向量化...');
+    setIsVectorizing(true);
 
     try {
-      // 创建文档对象
-      const doc: KnowledgeDocument = {
+      // 1. 获取向量 (通过 AIService) - 关键修复点
+      console.log('Starting vectorization for new document...');
+      const res = await aiService.createEmbedding(newDocument.content);
+      const vector = res.data[0].embedding;
+
+      if (!vector || !Array.isArray(vector) || vector.length !== 768) {
+        throw new Error('向量化返回数据格式错误');
+      }
+
+      setUploadProgress(90);
+      setUploadStatus('向量化完成，正在保存...');
+
+      // 2. 将向量随文本一起存入 - 核心：此时不存，检索就没戏
+      const finalDoc: KnowledgeDocument = {
         id: Date.now().toString(),
         title: newDocument.title,
         content: newDocument.content,
-        createdAt: new Date(),
-        vectorized: false
+        embedding: vector, // 关键字段！必须存储768维向量
+        vectorized: true,
+        createdAt: new Date()
       };
 
-      // 向量化文档内容
-      setIsVectorizing(true);
-      
-      // 模拟向量化进度
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev === null || prev >= 90) {
-            clearInterval(progressInterval);
-            return prev || 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      const embeddingResult = await aiService.createEmbedding(doc.content, {
-        model: ZhipuModel.EMBEDDING_3,
-        dimensions: 768
-      });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      setUploadStatus('已存放到多维知识库');
-
-      // 更新文档为已向量化
-      const vectorizedDoc = {
-        ...doc,
-        embedding: embeddingResult.data[0].embedding,
-        vectorized: true
-      };
-
-      // 添加到知识库
-      setDocuments(prev => [...prev, vectorizedDoc]);
+      // 3. 更新状态列表
+      setDocuments(prev => [...prev, finalDoc]);
       setNewDocument({ title: '', content: '' });
       setUploadedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+
+      setUploadProgress(100);
+      setUploadStatus('已存放到多维知识库');
 
       // 清除上传状态
       setTimeout(() => {
@@ -762,7 +755,12 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
         setUploadStatus('');
       }, 1500);
 
-      showMessage('success', '文档添加成功，已存放到多维知识库');
+      showMessage('success', '文档添加成功，已完成向量化并存储');
+      console.log('Document added with embedding:', {
+        title: finalDoc.title,
+        embeddingLength: finalDoc.embedding?.length,
+        vectorized: finalDoc.vectorized
+      });
     } catch (error) {
       console.error('文档向量化失败:', error);
       setUploadStatus('向量化失败');
@@ -776,25 +774,23 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
     }
   };
 
-  // 删除文档
-  const deleteDocument = (id: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== id));
-    showMessage('success', '文档删除成功');
-  };
-
-  // 向量化单个文档
+  // 向量化单个文档 - 使用优化方法
   const vectorizeDocument = async (doc: KnowledgeDocument) => {
     try {
       setIsVectorizing(true);
       
-      const embeddingResult = await aiService.createEmbedding(doc.content, {
-        model: ZhipuModel.EMBEDDING_3,
-        dimensions: 768
+      const vectorizedItem = await aiService.vectorizeKnowledgeItem({
+        id: doc.id,
+        title: doc.title,
+        content: doc.content,
+        type: 'manual' as any,
+        tags: [],
+        createdAt: doc.createdAt.toISOString()
       });
 
       setDocuments(prev => prev.map(d => 
         d.id === doc.id 
-          ? { ...d, embedding: embeddingResult.data[0].embedding, vectorized: true }
+          ? { ...d, embedding: vectorizedItem.embedding, vectorized: !!vectorizedItem.embedding }
           : d
       ));
 
@@ -807,7 +803,7 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
     }
   };
 
-  // 批量向量化所有文档
+  // 批量向量化所有文档 - 使用优化方法
   const vectorizeAllDocuments = async () => {
     try {
       setIsVectorizing(true);
@@ -818,23 +814,31 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
         return;
       }
 
-      const updatedDocs = [...documents];
+      // 转换为KnowledgeItem格式
+      const knowledgeItems = unvectorizedDocs.map(doc => ({
+        id: doc.id,
+        title: doc.title,
+        content: doc.content,
+        type: 'manual' as any,
+        tags: [],
+        createdAt: doc.createdAt.toISOString()
+      }));
+
+      // 使用批量向量化方法
+      const vectorizedItems = await aiService.vectorizeProjectKnowledge(knowledgeItems);
       
-      for (const doc of unvectorizedDocs) {
-        const embeddingResult = await aiService.createEmbedding(doc.content, {
-          model: ZhipuModel.EMBEDDING_3,
-          dimensions: 768
-        });
-        
-        const index = updatedDocs.findIndex(d => d.id === doc.id);
-        if (index !== -1) {
-          updatedDocs[index] = {
-            ...updatedDocs[index],
-            embedding: embeddingResult.data[0].embedding,
+      // 更新文档状态
+      const updatedDocs = documents.map(doc => {
+        const vectorizedItem = vectorizedItems.find(item => item.id === doc.id);
+        if (vectorizedItem && vectorizedItem.embedding) {
+          return {
+            ...doc,
+            embedding: vectorizedItem.embedding,
             vectorized: true
           };
         }
-      }
+        return doc;
+      });
 
       setDocuments(updatedDocs);
       showMessage('success', `成功向量化 ${unvectorizedDocs.length} 个文档`);
@@ -846,7 +850,7 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
     }
   };
 
-  // 语义搜索
+  // 语义搜索 - 修复点：直接使用本地向量计算
   const semanticSearch = async () => {
     if (!searchQuery.trim()) {
       showMessage('error', '请输入搜索关键词');
@@ -856,45 +860,50 @@ SmartHome Pro Hub是一款功能强大的智能家居控制中心，支持连接
     try {
       setIsSearching(true);
       
-      // 确保所有文档都已向量化
-      const unvectorizedDocs = documents.filter(doc => !doc.vectorized);
-      if (unvectorizedDocs.length > 0) {
-        showMessage('info', '正在向量化未处理的文档...');
-        await Promise.all(
-          unvectorizedDocs.map(async (doc) => {
-            const embeddingResult = await aiService.createEmbedding(doc.content, {
-              model: ZhipuModel.EMBEDDING_3,
-              dimensions: 768
-            });
-            setDocuments(prev => prev.map(d => 
-              d.id === doc.id 
-                ? { ...d, embedding: embeddingResult.data[0].embedding, vectorized: true }
-                : d
-            ));
-          })
-        );
+      // 检查是否有已向量化的文档
+      const vectorizedDocs = documents.filter(doc => 
+        doc.vectorized && 
+        doc.embedding && 
+        Array.isArray(doc.embedding) && 
+        doc.embedding.length === 768
+      );
+
+      if (vectorizedDocs.length === 0) {
+        showMessage('info', '没有已向量化的文档可供搜索，请先添加并向量化文档');
+        return;
       }
 
-      // 向量化查询
-      const queryEmbedding = await aiService.createEmbedding(searchQuery, {
-        model: ZhipuModel.EMBEDDING_3,
-        dimensions: 768
-      });
+      console.log(`Searching in ${vectorizedDocs.length} vectorized documents...`);
 
-      // 计算相似度
-      const results = documents
-        .filter(doc => doc.vectorized && doc.embedding)
+      // 1. 向量化搜索查询
+      const queryRes = await aiService.createEmbedding(searchQuery);
+      const queryVector = queryRes.data[0].embedding;
+
+      // 2. 本地计算相似度 - 直接实现余弦相似度算法
+      const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
+        if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+        const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+        const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+        const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+        return (magA === 0 || magB === 0) ? 0 : dotProduct / (magA * magB);
+      };
+
+      const scoredResults = vectorizedDocs
         .map(doc => ({
           doc,
-          score: aiService.cosineSimilarity(
-            queryEmbedding.data[0].embedding,
-            doc.embedding!
-          )
+          score: cosineSimilarity(queryVector, doc.embedding!)
         }))
-        .sort((a, b) => b.score - a.score);
+        .filter(result => result.score > 0.3) // 过滤低相关度结果
+        .sort((a, b) => b.score - a.score); // 按相关度排序
 
-      setSearchResults(results);
-      showMessage('success', `找到 ${results.length} 个相关文档`);
+      setSearchResults(scoredResults);
+      
+      console.log('Search results:', scoredResults.map(r => ({
+        title: r.doc.title,
+        score: r.score.toFixed(3)
+      })));
+
+      showMessage('success', `找到 ${scoredResults.length} 个相关文档`);
     } catch (error) {
       console.error('搜索失败:', error);
       showMessage('error', '搜索失败，请检查API密钥是否正确');

@@ -6,6 +6,7 @@ import {
 import { aiService } from '../services/aiService';
 import { linkService } from '../services/linkService';
 import { projectService } from '../services/projectService';
+import { apiKeyService } from '../services/apiKeyService';
 
 interface DiagnosticResult {
   name: string;
@@ -31,8 +32,8 @@ const Diagnostics: React.FC = () => {
     });
     setResults([...diagnostics]);
 
-    // 检查API密钥（localStorage 或 环境变量）
-    const localApiKey = localStorage.getItem('zhipuApiKey');
+    // 检查API密钥（使用API密钥服务）
+    const localApiKey = apiKeyService.getZhipuApiKey();
     const envApiKey = aiService.getZhipuApiKey(); // 这会检查环境变量
     
     if (localApiKey || envApiKey) {
@@ -47,7 +48,7 @@ const Diagnostics: React.FC = () => {
           name: 'API密钥配置',
           status: testResult.success ? 'success' : 'error',
           message: testResult.success 
-            ? `✅ API密钥有效，连接正常 ${localApiKey ? '(localStorage)' : '(环境变量)'}` 
+            ? `✅ API密钥有效，连接正常 ${localApiKey ? '(缓存)' : '(环境变量)'}` 
             : `❌ ${testResult.message}`,
           action: !testResult.success ? () => window.open('/admin/settings', '_blank') : undefined,
           actionText: '去配置'
@@ -65,7 +66,7 @@ const Diagnostics: React.FC = () => {
       diagnostics[0] = {
         name: 'API密钥配置',
         status: 'error',
-        message: '❌ 未配置智谱AI密钥（localStorage和环境变量都为空）',
+        message: '❌ 未配置智谱AI密钥（缓存和环境变量都为空）',
         action: () => window.open('/admin/settings', '_blank'),
         actionText: '去配置'
       };
@@ -191,6 +192,59 @@ const Diagnostics: React.FC = () => {
       },
       actionText: '测试对话'
     });
+    setResults([...diagnostics]);
+
+    // 6. 知识库检索能力测试
+    diagnostics.push({
+      name: '知识库检索测试',
+      status: 'loading',
+      message: '检查中...'
+    });
+    setResults([...diagnostics]);
+
+    try {
+      const projects = await projectService.getAllProjects();
+      if (projects.length > 0 && projects[0].knowledgeBase.length > 0) {
+        // 使用第一个项目的知识库进行测试
+        const testResult = await aiService.testKnowledgeRetrieval(
+          '产品安装', // 测试查询
+          projects[0].knowledgeBase
+        );
+        
+        diagnostics[5] = {
+          name: '知识库检索测试',
+          status: testResult.success ? 'success' : 'warning',
+          message: testResult.message,
+          action: testResult.details ? () => {
+            const details = testResult.details!;
+            const info = `知识库状态：
+总项目数: ${details.totalItems}
+已向量化: ${details.vectorizedItems}
+
+匹配结果 (前5项):
+${details.matchedItems.slice(0, 5).map((item, i) => 
+  `${i+1}. ${item.title} (相似度: ${item.score.toFixed(3)}, 向量: ${item.hasEmbedding ? '✅' : '❌'})`
+).join('\n')}`;
+            alert(info);
+          } : undefined,
+          actionText: testResult.details ? '查看详情' : undefined
+        };
+      } else {
+        diagnostics[5] = {
+          name: '知识库检索测试',
+          status: 'warning',
+          message: '⚠️ 暂无知识库内容可测试',
+          action: () => window.open('/admin/projects', '_blank'),
+          actionText: '添加知识库'
+        };
+      }
+    } catch (error) {
+      diagnostics[5] = {
+        name: '知识库检索测试',
+        status: 'error',
+        message: `❌ 知识库检索测试失败: ${error instanceof Error ? error.message : '未知错误'}`
+      };
+    }
     setResults([...diagnostics]);
 
     setIsRunning(false);

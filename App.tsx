@@ -117,27 +117,6 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
         setLoading(false);
       }
     };
-          
-          if (validation.valid && validation.project) {
-            console.log('项目验证成功，直接渲染用户界面');
-            setProjectId(id);
-            setLoading(false);
-          } else {
-            console.log('项目验证失败:', validation.error);
-            setError(validation.error || '项目不可用');
-            setLoading(false);
-          }
-        } else {
-          console.log('未找到对应的项目，可能是无效的二维码');
-          setError('无效的二维码或链接已过期');
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('链接处理失败:', error);
-        setError('链接处理失败，请稍后重试');
-        setLoading(false);
-      }
-    };
 
     handleLinkEntry();
   }, [shortCode]);
@@ -433,7 +412,10 @@ const App: React.FC = () => {
         videoChatEnabled: true,
         videoChatPrompt: '您是中恒创世科技的专业技术支持专家。请仔细分析用户提供的视频内容，识别产品使用或安装过程中的具体问题，并基于产品知识库提供准确的解决方案。\n\n分析重点：\n1. 产品型号识别与规格确认\n2. 安装步骤的正确性检查\n3. 连接线路与接口状态\n4. 设备指示灯与显示状态\n5. 操作流程的规范性\n6. 潜在安全隐患识别\n\n回复要求：\n- 使用专业但易懂的语言\n- 提供具体的操作步骤\n- 标注重要的安全注意事项\n- 如需更换配件，请说明具体型号\n- 优先引用官方知识库内容\n- 必要时建议联系中恒创世技术支持热线',
         avatarEnabled: true,
-        annotationEnabled: true
+        annotationEnabled: true,
+        // RAG 配置参数 - 设置默认值
+        searchThreshold: 0.45, // 相似度阈值
+        maxContextItems: 3     // 最大上下文项目数
       },
       knowledgeBase: [],
       createdAt: new Date().toISOString(),

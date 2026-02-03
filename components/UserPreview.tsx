@@ -8,6 +8,13 @@ import {
 } from 'lucide-react';
 import { aiService, RealtimeCallback, Annotation } from '../services/aiService';
 import { projectService } from '../services/projectService';
+import { apiKeyService } from '../services/apiKeyService';
+import SkeletonScreen from './SkeletonScreen';
+import ConnectionStatus from './ConnectionStatus';
+import QuickReplies from './QuickReplies';
+import VoiceVisualizer from './VoiceVisualizer';
+import CameraGuide from './CameraGuide';
+import FeedbackModal from './FeedbackModal';
 
 const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }> = ({ projects, projectId: propProjectId }) => {
   const { id } = useParams();
@@ -48,6 +55,16 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   const [currentAnnotationType, setCurrentAnnotationType] = useState<'arrow' | 'circle' | 'text' | 'highlight'>('arrow');
   const [isAddingAnnotation, setIsAddingAnnotation] = useState(false);
   
+  // 移动端优化状态
+  const [networkStatus, setNetworkStatus] = useState<'connected' | 'disconnected' | 'reconnecting' | 'degraded'>('connected');
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [showCameraGuide, setShowCameraGuide] = useState(false);
+  const [isImageCompressing, setIsImageCompressing] = useState(false);
+  
+  // 反馈相关状态
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
+  
   // References
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +85,13 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       videoStreamRef.current.getTracks().forEach(track => track.stop());
     }
     
-    aiService.disconnectFromRealtime();
+    // 增加安全判断：只有当函数存在时才调用
+    if (typeof aiService.disconnectFromRealtime === 'function') {
+      aiService.disconnectFromRealtime();
+    } else {
+      console.warn("aiService.disconnectFromRealtime 未定义，跳过清理");
+    }
+    
     setIsVideoChatActive(false);
     setVideoStream(null);
     setIsConnected(false);
@@ -76,9 +99,189 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
     setAnnotations([]);
   };
 
-  // 从服务端加载项目数据
+  // RAG 预热函数 - 检查并预处理知识库向量
+  const warmupRAG = async (project: ProductProject) => {
+    const knowledgeBase = project.knowledgeBase || [];
+    if (knowledgeBase.length === 0) {
+      console.log('项目无知识库内容，跳过RAG预热');
+      return;
+    }
+
+    const vectorizedItems = knowledgeBase.filter(item => 
+      item.embedding && Array.isArray(item.embedding) && item.embedding.length === 768
+    );
+    
+    console.log(`RAG预热检查: 总计 ${knowledgeBase.length} 项，已向量化 ${vectorizedItems.length} 项`);
+    
+    if (vectorizedItems.length === 0) {
+      console.warn('⚠️ 知识库未向量化，启动应急向量化补丁...');
+      
+      // 应急补丁：自动向量化知识库
+      try {
+        const apiKey = apiKeyService.getZhipuApiKey();
+        if (apiKey) {
+          aiService.setZhipuApiKey(apiKey);
+          console.log('开始应急向量化...');
+          
+          // 向量化前3个知识项（避免API限流）
+          const itemsToVectorize = knowledgeBase.slice(0, 3);
+          for (let i = 0; i < itemsToVectorize.length; i++) {
+            const item = itemsToVectorize[i];
+            try {
+              const response = await aiService.createEmbedding(`${item.title} ${item.content}`);
+              item.embedding = response.data[0].embedding;
+              console.log(`✅ 应急向量化完成: ${item.title}`);
+              
+              // 添加延迟避免API限流
+              if (i < itemsToVectorize.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            } catch (error) {
+              console.error(`应急向量化失败 [${item.title}]:`, error);
+            }
+          }
+          
+          // 更新项目数据（仅内存中，不持久化）
+          setProject(prev => prev ? { ...prev, knowledgeBase } : null);
+          
+          const newVectorizedCount = knowledgeBase.filter(item => 
+            item.embedding && Array.isArray(item.embedding) && item.embedding.length === 768
+          ).length;
+          
+          if (newVectorizedCount > 0) {
+            setMessages(prev => [...prev, { 
+              role: 'assistant', 
+              text: `🚀 系统优化完成！已成功向量化 ${newVectorizedCount} 项知识库内容，现在可以为您提供更精准的专业解答。` 
+            }]);
+          } else {
+            setMessages(prev => [...prev, { 
+              role: 'assistant', 
+              text: '📋 系统提示：当前产品知识库正在初始化中，我将基于通用知识为您提供帮助。如需获得更精准的产品支持，请联系技术客服：400-888-6666' 
+            }]);
+          }
+        } else {
+          setMessages(prev => [...prev, { 
+            role: 'assistant', 
+            text: '📋 系统提示：当前产品知识库正在初始化中，我将基于通用知识为您提供帮助。如需获得更精准的产品支持，请联系技术客服：400-888-6666' 
+          }]);
+        }
+      } catch (error) {
+        console.error('应急向量化失败:', error);
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          text: '📋 系统提示：当前产品知识库正在初始化中，我将基于通用知识为您提供帮助。如需获得更精准的产品支持，请联系技术客服：400-888-6666' 
+        }]);
+      }
+    } else if (vectorizedItems.length < knowledgeBase.length) {
+      console.warn(`⚠️ 部分知识库未向量化: ${vectorizedItems.length}/${knowledgeBase.length}`);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: `🔧 系统提示：知识库部分内容已优化（${vectorizedItems.length}/${knowledgeBase.length}），我会尽力为您提供专业解答。` 
+      }]);
+    } else {
+      console.log('✅ 知识库向量化完整，RAG功能正常');
+    }
+  };
+
+  // 移动端优化：网络状态监控
+  const monitorNetworkStatus = () => {
+    const updateNetworkStatus = () => {
+      if (!navigator.onLine) {
+        setNetworkStatus('disconnected');
+      } else {
+        // 检测网络质量
+        const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+        if (connection) {
+          const { effectiveType, downlink } = connection;
+          if (effectiveType === 'slow-2g' || effectiveType === '2g' || downlink < 0.5) {
+            setNetworkStatus('degraded');
+          } else {
+            setNetworkStatus('connected');
+          }
+        } else {
+          setNetworkStatus('connected');
+        }
+      }
+    };
+
+    updateNetworkStatus();
+    window.addEventListener('online', updateNetworkStatus);
+    window.addEventListener('offline', updateNetworkStatus);
+    
+    // 监听网络变化
+    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    if (connection) {
+      connection.addEventListener('change', updateNetworkStatus);
+    }
+
+    return () => {
+      window.removeEventListener('online', updateNetworkStatus);
+      window.removeEventListener('offline', updateNetworkStatus);
+      if (connection) {
+        connection.removeEventListener('change', updateNetworkStatus);
+      }
+    };
+  };
+
+  // 移动端优化：图片压缩
+  const compressImage = (file: File, maxWidth: number = 1024, quality: number = 0.8): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // 计算压缩后的尺寸
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // 绘制并压缩
+        ctx?.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(compressedFile);
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', quality);
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // 移动端优化：重试网络连接
+  const retryConnection = async () => {
+    setNetworkStatus('reconnecting');
+    try {
+      // 简单的网络测试
+      await fetch('/api/health', { method: 'HEAD' });
+      setNetworkStatus('connected');
+    } catch {
+      setTimeout(() => setNetworkStatus('disconnected'), 2000);
+    }
+  };
+
+  // 主要初始化 useEffect - 合并所有初始化逻辑
   useEffect(() => {
-    const loadProject = async () => {
+    const initializeComponent = async () => {
+      // 1. 初始化AI服务
+      const savedApiKey = apiKeyService.getZhipuApiKey();
+      if (savedApiKey) {
+        aiService.setZhipuApiKey(savedApiKey);
+      }
+
+      // 2. 加载项目数据
       if (!projectId) {
         setProjectError('无效的项目ID');
         setProjectLoading(false);
@@ -104,11 +307,23 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         await projectService.logUserAccess(projectId, {
           timestamp: new Date().toISOString(),
           userAgent: navigator.userAgent,
-          referrer: document.referrer
+          referrer: document.referrer,
+          sessionId: Math.random().toString(36).substr(2, 9),
+          deviceType: /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 'mobile' : 
+                     /iPad|Tablet/.test(navigator.userAgent) ? 'tablet' : 'desktop',
+          action: 'scan',
+          metadata: {
+            screenResolution: `${screen.width}x${screen.height}`,
+            language: navigator.language,
+            isProactive: false
+          }
         });
         
         // 直接更新状态，避免setTimeout可能导致的问题
         setProject(validatedProject);
+        
+        // RAG 预热检查
+        await warmupRAG(validatedProject);
         
         // 初始化messages状态 - 优化为售后客服定位
         const welcomeMessage = `您好！我是 ${validatedProject.name} 的智能售后客服助手 🤖\n\n我可以帮您解决：\n• 产品使用问题\n• 安装指导\n• 故障排查\n• 维护保养\n\n请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`;
@@ -127,32 +342,40 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       }
     };
 
-    loadProject();
+    initializeComponent();
   }, [projectId]);
-
-  // 初始化AI服务（静默加载商家预配置的API密钥）
-  useEffect(() => {
-    const initializeAIService = () => {
-      // 尝试从localStorage加载商家预配置的API密钥
-      const savedApiKey = localStorage.getItem('zhipuApiKey');
-      if (savedApiKey) {
-        aiService.setZhipuApiKey(savedApiKey);
-      }
-      // 如果没有localStorage中的密钥，aiService会自动使用环境变量中的密钥
-    };
-    
-    initializeAIService();
-  }, []);
 
   // 滚动到最新消息
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isTyping]);
 
-  // 清理视频聊天
+  // 消息相关副作用 - 合并消息相关的逻辑
   useEffect(() => {
+    // 检查是否需要触发反馈
+    if (messages.length > 1) {
+      checkFeedbackTrigger();
+    }
+    
+    // 记录对话开始时间
+    if (messages.length === 1 && !conversationStartTime) {
+      setConversationStartTime(new Date());
+    }
+  }, [messages.length, conversationStartTime]);
+
+  // 组件清理和网络监控 - 合并清理逻辑
+  useEffect(() => {
+    // 网络状态监控
+    const networkCleanup = monitorNetworkStatus();
+    
+    // 组件卸载时的清理
     return () => {
-      cleanupVideoChat();
+      try {
+        networkCleanup();
+        cleanupVideoChat();
+      } catch (e) {
+        console.error("组件清理时出错:", e);
+      }
     };
   }, []);
 
@@ -161,13 +384,14 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#1a103d] to-[#2d1b69] flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-[3rem] border-2 border-violet-500/30 p-8 shadow-2xl">
-          <div className="text-center">
+          <div className="text-center mb-8">
             <div className="w-20 h-20 bg-violet-500/20 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-6">
               <Loader2 className="animate-spin" size={40} />
             </div>
             <h1 className="text-2xl font-black text-violet-800 mb-4">正在连接服务</h1>
             <p className="text-slate-600">正在验证二维码并加载产品信息...</p>
           </div>
+          <SkeletonScreen />
         </div>
       </div>
     );
@@ -255,7 +479,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       console.log('开始初始化视频聊天...');
       
       // 确保API密钥已设置（如果存在的话）
-      const savedApiKey = localStorage.getItem('zhipuApiKey');
+      const savedApiKey = apiKeyService.getZhipuApiKey();
       if (savedApiKey) {
         aiService.setZhipuApiKey(savedApiKey);
         console.log('API密钥已设置');
@@ -552,6 +776,23 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
     }
 
     try {
+      // 记录用户消息到分析系统
+      await projectService.logUserAccess(project.id, {
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        sessionId: sessionStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9),
+        deviceType: /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 'mobile' : 
+                   /iPad|Tablet/.test(navigator.userAgent) ? 'tablet' : 'desktop',
+        action: image ? 'ocr' : 'message',
+        metadata: {
+          messageContent: msgText,
+          hasImage: !!image,
+          conversationSteps: messages.length + 1,
+          isProactive: msgText.length < 20, // 短消息可能是快捷回复
+          messageType: image ? 'multimodal' : 'text'
+        }
+      });
+
       // 立即添加用户消息到界面
       const userMessage = { role: 'user' as const, text: msgText, image };
       setMessages(prev => [...prev, userMessage]);
@@ -565,7 +806,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         } else {
           try {
             // 确保API密钥已设置（如果存在的话）
-            const savedApiKey = localStorage.getItem('zhipuApiKey');
+            const savedApiKey = apiKeyService.getZhipuApiKey();
             if (savedApiKey) {
               aiService.setZhipuApiKey(savedApiKey);
             }
@@ -582,9 +823,15 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         // 确保知识库存在
         const knowledgeBase = project.knowledgeBase || [];
 
+        // 检查是否有向量数据，如果没有，给出控制台警告或引导
+        const vectorizedItems = knowledgeBase.filter(item => item.embedding && item.embedding.length > 0);
+        if (vectorizedItems.length === 0 && knowledgeBase.length > 0) {
+          console.warn("⚠️ 当前项目知识库未向量化，检索功能将受限");
+        }
+
         try {
           // 设置API密钥（如果存在的话）
-          const savedApiKey = localStorage.getItem('zhipuApiKey');
+          const savedApiKey = apiKeyService.getZhipuApiKey();
           if (savedApiKey) {
             aiService.setZhipuApiKey(savedApiKey);
           }
@@ -625,21 +872,30 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             }
           };
 
-          // 调用AI服务，使用流式输出 - AI服务会自动处理API密钥缺失的情况
+          // 调用AI服务，使用流式输出 - 修复点：传递对话历史
           // 添加超时处理
           const timeoutPromise = new Promise<void>((_, reject) => {
             setTimeout(() => reject(new Error('AI服务响应超时')), 30000); // 30秒超时
           });
+          
+          // 移动端优化：根据网络状态调整系统指令
+          let optimizedSystemInstruction = project.config.systemInstruction;
+          if (networkStatus === 'degraded') {
+            optimizedSystemInstruction += '\n\n重要提示：用户网络不稳定，请提供简洁明了的回答，避免冗长描述。优先给出关键信息和解决方案。';
+          }
           
           await Promise.race([
             aiService.getSmartResponse(
               msgText, 
               knowledgeBase, 
               project.config.provider, 
-              project.config.systemInstruction,
+              optimizedSystemInstruction,
               {
                 stream: true,
-                callback: streamCallback
+                callback: streamCallback,
+                conversationHistory: messages.slice(-6), // 传递最近3轮对话历史，防止Token溢出
+                searchThreshold: project.config.searchThreshold, // 使用项目配置的相似度阈值
+                maxContextItems: project.config.maxContextItems  // 使用项目配置的最大上下文项目数
               }
             ),
             timeoutPromise
@@ -699,6 +955,75 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
     }
   };
 
+  // 处理用户反馈
+  const handleFeedback = async (rating: number, feedback?: string, resolved?: boolean) => {
+    try {
+      if (!project) return;
+
+      // 计算对话时长
+      const conversationDuration = conversationStartTime 
+        ? Math.floor((Date.now() - conversationStartTime.getTime()) / 1000)
+        : 0;
+
+      // 记录反馈到分析系统
+      await projectService.logUserAccess(project.id, {
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        sessionId: sessionStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9),
+        deviceType: /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 'mobile' : 
+                   /iPad|Tablet/.test(navigator.userAgent) ? 'tablet' : 'desktop',
+        action: 'message',
+        metadata: {
+          csatRating: rating,
+          feedbackText: feedback,
+          problemResolved: resolved,
+          conversationSteps: messages.length,
+          conversationDuration,
+          knowledgeBaseHit: rating >= 4, // 4星以上认为知识库有效
+          sessionComplete: true
+        }
+      });
+
+      // 如果用户问题未解决，记录转人工
+      if (!resolved) {
+        await projectService.logUserAccess(project.id, {
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          sessionId: sessionStorage.getItem('sessionId') || Math.random().toString(36).substr(2, 9),
+          deviceType: /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 'mobile' : 
+                     /iPad|Tablet/.test(navigator.userAgent) ? 'tablet' : 'desktop',
+          action: 'handoff',
+          metadata: {
+            reason: 'unresolved_issue',
+            csatRating: rating,
+            conversationSteps: messages.length
+          }
+        });
+      }
+
+      // 显示感谢消息
+      const thankYouMessage = resolved 
+        ? `感谢您的 ${rating} 星评价！很高兴能帮助您解决问题。` 
+        : `感谢您的反馈。我们会持续改进服务质量。如需人工协助，请联系客服：400-888-6666`;
+      
+      setMessages(prev => [...prev, { role: 'assistant', text: thankYouMessage }]);
+      
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+    }
+  };
+
+  // 触发反馈模态框的条件检查
+  const checkFeedbackTrigger = () => {
+    // 当对话达到一定轮次时，提示用户评价
+    if (messages.length >= 6 && messages.length % 4 === 0) {
+      // 延迟3秒显示反馈模态框
+      setTimeout(() => {
+        setShowFeedbackModal(true);
+      }, 3000);
+    }
+  };
+
   // 语音常驻监听功能
   const toggleVoiceListening = async () => {
     if (isVoiceActive) {
@@ -748,6 +1073,9 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           sum += dataArray[i];
         }
         const average = sum / bufferLength;
+        
+        // 更新音频级别用于可视化
+        setAudioLevel(Math.min(100, average * 2));
 
         // 语音阈值
         const voiceThreshold = 50;
@@ -784,6 +1112,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
 
   const stopVoiceListening = () => {
     setIsVoiceActive(false);
+    setAudioLevel(0);
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
     }
@@ -871,7 +1200,12 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   const processOcrImage = async (file: File) => {
     try {
       setIsOcrProcessing(true);
-      showOcrMessage('info', '正在识别图片中的文字...');
+      setIsImageCompressing(true);
+      showOcrMessage('info', '正在压缩和识别图片...');
+      
+      // 移动端优化：压缩图片
+      const compressedFile = await compressImage(file, 1024, 0.8);
+      setIsImageCompressing(false);
       
       // 显示上传的图片
       const reader = new FileReader();
@@ -879,7 +1213,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         const imageUrl = event.target?.result as string;
         setOcrImage(imageUrl);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(compressedFile);
       
       // 确保API密钥已设置（如果存在的话）
       const savedApiKey = localStorage.getItem('zhipuApiKey');
@@ -890,7 +1224,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       
       try {
         // 调用 OCR 服务 - AI服务会自动处理API密钥缺失的情况
-        const ocrResult = await aiService.recognizeHandwriting(file, {
+        const ocrResult = await aiService.recognizeHandwriting(compressedFile, {
           languageType: 'CHN_ENG',
           probability: true
         });
@@ -924,6 +1258,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       showOcrMessage('error', '图片处理失败，请重试');
     } finally {
       setIsOcrProcessing(false);
+      setIsImageCompressing(false);
     }
   };
   
@@ -1133,6 +1468,9 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
       {/* Regular chat interface */}
       {!isVideoChatActive && (
         <>
+          {/* 移动端优化：网络状态提示 */}
+          <ConnectionStatus status={networkStatus} onRetry={retryConnection} />
+          
           <header className="bg-[#0f1218]/80 backdrop-blur-3xl p-6 text-white shrink-0 border-b border-white/5 z-20">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-4">
@@ -1222,6 +1560,17 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           )}
           
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8">
+            {/* 移动端优化：语音可视化 */}
+            <VoiceVisualizer isRecording={isRecording} audioLevel={audioLevel} />
+            
+            {/* 移动端优化：快捷回复 */}
+            {messages.length <= 1 && project.knowledgeBase && (
+              <QuickReplies 
+                knowledgeBase={project.knowledgeBase} 
+                onQuickReply={(text) => handleSend(text)} 
+              />
+            )}
+            
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
                 <div className={`max-w-[85%] ${m.role === 'user' ? 'order-1' : 'order-2'}`}>
@@ -1272,18 +1621,33 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
               className="hidden"
             />
             
+            {/* 移动端优化：相机引导 */}
+            <CameraGuide 
+              isVisible={showCameraGuide}
+              onClose={() => setShowCameraGuide(false)}
+              onCapture={() => {
+                setShowCameraGuide(false);
+                ocrFileInputRef.current?.click();
+              }}
+            />
+            
             {/* 功能按钮区 */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="relative group">
                   <button 
-                    onClick={() => fileInputRef.current?.click()} 
+                    onClick={() => setShowCameraGuide(true)} 
                     className="p-3 bg-white/5 border border-white/10 rounded-xl text-violet-400"
+                    disabled={isImageCompressing}
                   >
-                    <Camera size={20} />
+                    {isImageCompressing ? (
+                      <Loader2 className="animate-spin" size={20} />
+                    ) : (
+                      <Camera size={20} />
+                    )}
                   </button>
                   <div className="absolute -bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl p-2 text-[10px] font-black text-white opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap z-50">
-                    上传图片
+                    {isImageCompressing ? '压缩中...' : '拍照识别'}
                   </div>
                 </div>
                 <button onClick={toggleVoiceListening} className={`p-3 rounded-xl border ${isVoiceActive ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-white/5 border-white/10 text-violet-400'}`}>
@@ -1304,31 +1668,61 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder="问我关于此产品的问题..."
+                placeholder={networkStatus === 'degraded' ? '网络不稳定，请简短描述问题...' : '问我关于此产品的问题...'}
                 className="w-full bg-white/5 border border-white/10 px-5 py-4 rounded-xl text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20 pr-16"
+                disabled={networkStatus === 'disconnected'}
               />
-              <button onClick={() => handleSend()} className="absolute right-2 top-2 p-2 purple-gradient-btn text-white rounded-lg">
+              <button 
+                onClick={() => handleSend()} 
+                className="absolute right-2 top-2 p-2 purple-gradient-btn text-white rounded-lg disabled:opacity-50"
+                disabled={networkStatus === 'disconnected' || (!inputValue.trim())}
+              >
                 <Send size={18} />
               </button>
             </div>
             
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={async (e) => {
               const f = e.target.files?.[0];
               if (f) {
-                // 同时处理图片分析和OCR
-                const r = new FileReader();
-                r.onload = () => {
-                  // 发送图片分析请求
-                  handleSend("分析照片 Analyze photo", r.result as string);
-                  // 同时进行OCR处理
-                  processOcrImage(f);
-                };
-                r.readAsDataURL(f);
+                setIsImageCompressing(true);
+                try {
+                  // 移动端优化：压缩图片
+                  const compressedFile = await compressImage(f, 1024, 0.8);
+                  
+                  // 同时处理图片分析和OCR
+                  const r = new FileReader();
+                  r.onload = () => {
+                    // 发送图片分析请求
+                    handleSend("分析照片 Analyze photo", r.result as string);
+                    // 同时进行OCR处理
+                    processOcrImage(compressedFile);
+                  };
+                  r.readAsDataURL(compressedFile);
+                } catch (error) {
+                  console.error('图片压缩失败:', error);
+                  // 如果压缩失败，使用原图
+                  const r = new FileReader();
+                  r.onload = () => {
+                    handleSend("分析照片 Analyze photo", r.result as string);
+                    processOcrImage(f);
+                  };
+                  r.readAsDataURL(f);
+                } finally {
+                  setIsImageCompressing(false);
+                }
               }
             }} />
           </div>
         </>
       )}
+      
+      {/* 反馈模态框 */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        onSubmit={handleFeedback}
+        projectName={project.name}
+      />
     </div>
   );
 };

@@ -5,11 +5,12 @@ import {
   ArrowLeft, Save, Trash2, FileText, QrCode, 
   ShieldCheck, Video, Globe, Sparkles, Download, 
   ExternalLink, Upload, FileUp, X, CheckCircle, Volume2,
-  Camera, MessageSquare
+  Camera, MessageSquare, Palette
 } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { linkService } from '../services/linkService';
 import QRCodeSection from './QRCodeSection';
+import UICustomizer from './UICustomizer';
 
 interface ProjectDetailProps {
   projects: ProductProject[];
@@ -33,6 +34,53 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
   const [apiKeyStatus, setApiKeyStatus] = useState<{hasKey: boolean, checked: boolean}>({
     hasKey: false, 
     checked: false
+  });
+
+  // 默认UI自定义配置
+  const getDefaultUICustomization = () => ({
+    backgroundType: 'gradient' as const,
+    backgroundColor: '#f8fafc',
+    backgroundGradient: {
+      from: '#f1f5f9',
+      to: '#e2e8f0',
+      direction: 'to-br' as const
+    },
+    backgroundOpacity: 100,
+    fontFamily: 'system' as const,
+    fontSize: 'base' as const,
+    fontWeight: 'normal' as const,
+    primaryColor: '#3b82f6',
+    secondaryColor: '#64748b',
+    textColor: '#1e293b',
+    userMessageBg: '#3b82f6',
+    userMessageText: '#ffffff',
+    aiMessageBg: '#f1f5f9',
+    aiMessageText: '#1e293b',
+    messageBorderRadius: 'lg' as const,
+    userAvatar: {
+      type: 'emoji' as const,
+      value: '👤',
+      bgColor: '#3b82f6',
+      textColor: '#ffffff'
+    },
+    aiAvatar: {
+      type: 'emoji' as const,
+      value: '🤖',
+      bgColor: '#10b981',
+      textColor: '#ffffff'
+    },
+    inputBg: '#ffffff',
+    inputBorder: '#d1d5db',
+    inputText: '#1f2937',
+    inputPlaceholder: '#9ca3af',
+    buttonPrimary: '#3b82f6',
+    buttonSecondary: '#6b7280',
+    buttonText: '#ffffff',
+    enableAnimations: true,
+    messageAnimation: 'slide' as const,
+    enableEmojis: true,
+    enableImageUpload: true,
+    enableVoiceMessage: true
   });
 
   // Refs
@@ -62,6 +110,21 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
       aiService.setZhipuApiKey(savedApiKey);
     }
   }, []);
+
+  // 初始化UI自定义配置
+  useEffect(() => {
+    if (localProject && !localProject.config.uiCustomization) {
+      const updatedProject = {
+        ...localProject,
+        config: {
+          ...localProject.config,
+          uiCustomization: getDefaultUICustomization()
+        }
+      };
+      setLocalProject(updatedProject);
+      onUpdate(updatedProject);
+    }
+  }, [localProject?.id]);
 
   if (!localProject) {
     return (
@@ -274,35 +337,43 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
       <div className="flex flex-wrap gap-3 p-2 bg-slate-100 border border-slate-200 backdrop-blur-3xl rounded-[2.5rem] w-fit">
         <TabButton 
           id="knowledge" 
-          labelZh="多维知识库" 
-          labelEn="RAG Knowledge" 
+          labelZh="1. 多维知识库" 
+          labelEn="1. RAG Knowledge" 
           active={activeTab === 'knowledge'} 
           onClick={setActiveTab} 
           icon={<FileText size={20}/>} 
         />
         <TabButton 
           id="video" 
-          labelZh="引导视频" 
-          labelEn="Video Guides" 
+          labelZh="2. 引导视频" 
+          labelEn="2. Video Guides" 
           active={activeTab === 'video'} 
           onClick={setActiveTab} 
           icon={<Video size={20}/>} 
         />
         <TabButton 
-          id="qr" 
-          labelZh="发布部署" 
-          labelEn="Deployment" 
-          active={activeTab === 'qr'} 
+          id="customize" 
+          labelZh="3. 个性化设置" 
+          labelEn="3. UI Customization" 
+          active={activeTab === 'customize'} 
           onClick={setActiveTab} 
-          icon={<QrCode size={20}/>} 
+          icon={<Sparkles size={20}/>} 
         />
         <TabButton 
           id="config" 
-          labelZh="AI配置" 
-          labelEn="AI Config" 
+          labelZh="4. 客服回复设置" 
+          labelEn="4. Reply Config" 
           active={activeTab === 'config'} 
           onClick={setActiveTab} 
-          icon={<Sparkles size={20}/>} 
+          icon={<MessageSquare size={20}/>} 
+        />
+        <TabButton 
+          id="qr" 
+          labelZh="5. 发布部署" 
+          labelEn="5. Deployment" 
+          active={activeTab === 'qr'} 
+          onClick={setActiveTab} 
+          icon={<QrCode size={20}/>} 
         />
       </div>
 
@@ -547,6 +618,16 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'customize' && (
+            <div className="space-y-8">
+              {/* UICustomizer组件集成 */}
+              <UICustomizer 
+                project={localProject} 
+                onUpdate={autoSave}
+              />
             </div>
           )}
 

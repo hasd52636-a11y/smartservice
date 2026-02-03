@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API密钥配置调试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8fafc;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #1e293b;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        .warning {
+            background: #fefce8;
+            color: #ca8a04;
+            border: 1px solid #fde68a;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .test-btn {
+            background: #10b981;
+        }
+        .test-btn:hover {
+            background: #059669;
+        }
+        .clear-btn {
+            background: #ef4444;
+        }
+        .clear-btn:hover {
+            background: #dc2626;
+        }
+        .code {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 API密钥配置调试工具</h1>
+        <p>用于诊断和配置智谱AI API密钥问题</p>
+    </div>
+
+    <div class="container">
+        <h2>📋 当前状态检查</h2>
+        <div id="statusContainer">
+            <div class="status warning">正在检查...</div>
+        </div>
+        <button onclick="checkStatus()" class="test-btn">重新检查</button>
+    </div>
+
+    <div class="container">
+        <h2>🔧 API密钥配置</h2>
+        <p>请输入您的智谱AI API密钥：</p>
+        <input type="text" id="apiKeyInput" placeholder="请输入API密钥 (格式: xxxxxxxx.xxxxxxxxxxxxxxxx)" />
+        <br>
+        <button onclick="saveApiKey()">保存密钥</button>
+        <button onclick="testApiKey()" class="test-btn">测试密钥</button>
+        <button onclick="clearApiKey()" class="clear-btn">清除密钥</button>
+        
+        <div class="status warning" style="margin-top: 15px;">
+            <strong>注意：</strong> API密钥将保存在浏览器本地存储中，仅在当前浏览器有效。
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🧪 API测试</h2>
+        <button onclick="testEmbedding()" class="test-btn">测试向量化API</button>
+        <button onclick="testChat()" class="test-btn">测试对话API</button>
+        <div id="testResults" class="code" style="margin-top: 15px;">等待测试...</div>
+    </div>
+
+    <div class="container">
+        <h2>📖 配置说明</h2>
+        <div class="code">
+1. 获取API密钥：
+   - 访问 https://open.bigmodel.cn/
+   - 注册/登录账号
+   - 在控制台创建API密钥
+
+2. 密钥格式：
+   - 格式：xxxxxxxx.xxxxxxxxxxxxxxxx
+   - 示例：12345678.abcdefghijklmnop
+
+3. 环境变量配置（可选）：
+   - 设置 ZHIPU_API_KEY 环境变量
+   - 或在 .env 文件中添加：ZHIPU_API_KEY=your_key_here
+
+4. 故障排除：
+   - 确保密钥格式正确
+   - 检查账户余额
+   - 验证API权限
+        </div>
+    </div>
+
+    <script>
+        // 检查当前状态
+        async function checkStatus() {
+            const container = document.getElementById('statusContainer');
+            container.innerHTML = '<div class="status warning">正在检查...</div>';
+
+            const checks = [];
+
+            // 检查localStorage中的API密钥
+            const localApiKey = localStorage.getItem('zhipuApiKey');
+            if (localApiKey) {
+                checks.push(`<div class="status success">✅ 本地存储中找到API密钥 (长度: ${localApiKey.length})</div>`);
+                document.getElementById('apiKeyInput').value = localApiKey;
+            } else {
+                checks.push(`<div class="status error">❌ 本地存储中未找到API密钥</div>`);
+            }
+
+            // 测试API连接
+            try {
+                const response = await fetch('/api/zhipu/models', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': localApiKey ? `Bearer ${localApiKey}` : ''
+                    }
+                });
+
+                if (response.ok) {
+                    checks.push(`<div class="status success">✅ API连接正常</div>`);
+                } else {
+                    const errorText = await response.text();
+                    checks.push(`<div class="status error">❌ API连接失败: ${response.status} - ${errorText}</div>`);
+                }
+            } catch (error) {
+                checks.push(`<div class="status error">❌ API连接异常: ${error.message}</div>`);
+            }
+
+            container.innerHTML = checks.join('');
+        }
+
+        // 保存API密钥
+        function saveApiKey() {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            if (!apiKey) {
+                alert('请输入API密钥');
+                return;
+            }
+
+            // 验证密钥格式
+            if (!/^[a-zA-Z0-9]+\.[a-zA-Z0-9]+$/.test(apiKey)) {
+                alert('API密钥格式不正确，应为：xxxxxxxx.xxxxxxxxxxxxxxxx');
+                return;
+            }
+
+            localStorage.setItem('zhipuApiKey', apiKey);
+            alert('API密钥已保存到本地存储');
+            checkStatus();
+        }
+
+        // 测试API密钥
+        async function testApiKey() {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            if (!apiKey) {
+                alert('请先输入API密钥');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/zhipu/models', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert('API密钥测试成功！');
+                    console.log('可用模型:', data);
+                } else {
+                    const errorText = await response.text();
+                    alert(`API密钥测试失败: ${response.status} - ${errorText}`);
+                }
+            } catch (error) {
+                alert(`API测试异常: ${error.message}`);
+            }
+        }
+
+        // 清除API密钥
+        function clearApiKey() {
+            localStorage.removeItem('zhipuApiKey');
+            document.getElementById('apiKeyInput').value = '';
+            alert('API密钥已清除');
+            checkStatus();
+        }
+
+        // 测试向量化API
+        async function testEmbedding() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.textContent = '正在测试向量化API...';
+
+            const apiKey = localStorage.getItem('zhipuApiKey');
+            if (!apiKey) {
+                resultsDiv.textContent = '错误: 请先配置API密钥';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/zhipu/embeddings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'embedding-3',
+                        input: '测试文本',
+                        dimensions: 768
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.textContent = `向量化API测试成功！\n\n响应数据:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    const errorText = await response.text();
+                    resultsDiv.textContent = `向量化API测试失败:\nHTTP ${response.status}\n\n错误详情:\n${errorText}`;
+                }
+            } catch (error) {
+                resultsDiv.textContent = `向量化API测试异常:\n${error.message}`;
+            }
+        }
+
+        // 测试对话API
+        async function testChat() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.textContent = '正在测试对话API...';
+
+            const apiKey = localStorage.getItem('zhipuApiKey');
+            if (!apiKey) {
+                resultsDiv.textContent = '错误: 请先配置API密钥';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/zhipu/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'glm-4-flash',
+                        messages: [
+                            { role: 'user', content: '你好，这是一个API测试' }
+                        ],
+                        max_tokens: 100
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.textContent = `对话API测试成功！\n\n响应数据:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    const errorText = await response.text();
+                    resultsDiv.textContent = `对话API测试失败:\nHTTP ${response.status}\n\n错误详情:\n${errorText}`;
+                }
+            } catch (error) {
+                resultsDiv.textContent = `对话API测试异常:\n${error.message}`;
+            }
+        }
+
+        // 页面加载时自动检查状态
+        window.onload = function() {
+            checkStatus();
+        };
+    </script>
+</body>
+</html>

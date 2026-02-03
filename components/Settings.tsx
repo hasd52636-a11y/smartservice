@@ -5,6 +5,7 @@ import {
   Activity, Zap, Database, Cpu, Server, Wifi, Key, Eye, EyeOff
 } from 'lucide-react';
 import { aiService } from '../services/aiService';
+import { apiKeyService } from '../services/apiKeyService';
 
 const Settings: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
@@ -31,8 +32,8 @@ const Settings: React.FC = () => {
   const handleSaveKey = () => {
     // 将API密钥传递给AIService
     aiService.setZhipuApiKey(zhipuApiKey);
-    // 可以选择将密钥存储在本地存储中，以便刷新页面后仍然有效
-    localStorage.setItem('zhipuApiKey', zhipuApiKey);
+    // 使用API密钥服务保存密钥
+    apiKeyService.setZhipuApiKey(zhipuApiKey);
     setKeySaved(true);
     setTimeout(() => {
       setKeySaved(false);
@@ -41,7 +42,7 @@ const Settings: React.FC = () => {
 
   // 组件加载时，从本地存储中获取之前保存的API密钥
   useEffect(() => {
-    const savedZhipuKey = localStorage.getItem('zhipuApiKey');
+    const savedZhipuKey = apiKeyService.getZhipuApiKey();
     if (savedZhipuKey) {
       setZhipuApiKey(savedZhipuKey);
       aiService.setZhipuApiKey(savedZhipuKey);

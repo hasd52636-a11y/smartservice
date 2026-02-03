@@ -3,51 +3,89 @@ const axios = require('axios');
 // 智谱AI API配置
 const ZHIPU_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 
-// 获取API密钥
+// 获取API密钥 - 优化安全性
 function getApiKey(req) {
-  // 优先从请求头获取
-  const authHeader = req?.headers?.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7);
+  // 生产环境优先从环境变量获取，提高安全性
+  const envApiKey = process.env.ZHIPU_API_KEY || process.env.API_KEY;
+  
+  if (envApiKey) {
+    console.log('Using API key from environment variables');
+    return envApiKey;
   }
   
-  // 从环境变量获取
-  return process.env.ZHIPU_API_KEY || process.env.API_KEY || '';
+  // 开发环境允许从请求头获取（仅用于测试）
+  if (process.env.NODE_ENV === 'development') {
+    const authHeader = req?.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      console.log('Using API key from request header (development mode)');
+      return authHeader.substring(7);
+    }
+  }
+  
+  return '';
 }
 
-// 处理SSE流式响应
+// 处理SSE流式响应 - 修复缓冲区问题
 function handleStreamingResponse(response, res) {
-  const contentType = response.headers['content-type'];
-  
-  if (contentType && contentType.includes('text/event-stream')) {
-    res.setHeader('Content-Type', 'text/event-stream');
+  return new Promise((resolve, reject) => {
+    // 设置SSE响应头
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
-    // 流式传输响应
+    let buffer = ''; // 缓冲区处理不完整的数据块
+    
     response.data.on('data', (chunk) => {
-      res.write(chunk);
+      try {
+        // 将新数据添加到缓冲区
+        buffer += chunk.toString();
+        
+        // 按行分割，保留最后一个可能不完整的行
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // 保留最后一行（可能不完整）
+        
+        // 处理完整的行
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue; // 跳过空行
+          
+          // 直接转发SSE格式的行
+          if (trimmedLine.startsWith('data: ') || 
+              trimmedLine.startsWith('event: ') || 
+              trimmedLine.startsWith('id: ')) {
+            res.write(trimmedLine + '\n');
+          }
+        }
+      } catch (error) {
+        console.error('Stream processing error:', error);
+        res.write('data: {"error": "Stream processing failed"}\n\n');
+      }
     });
     
     response.data.on('end', () => {
+      // 处理缓冲区中剩余的数据
+      if (buffer.trim()) {
+        const finalLine = buffer.trim();
+        if (finalLine.startsWith('data: ') || 
+            finalLine.startsWith('event: ') || 
+            finalLine.startsWith('id: ')) {
+          res.write(finalLine + '\n');
+        }
+      }
+      
       res.end();
+      resolve();
     });
     
     response.data.on('error', (error) => {
       console.error('Stream error:', error);
-      res.status(500).json({ error: 'Stream error' });
+      res.write('data: {"error": "Stream connection failed"}\n\n');
+      res.end();
+      reject(error);
     });
-  } else {
-    // 非流式响应
-    return response.data.then((data) => {
-      res.json(data);
-    }).catch((error) => {
-      console.error('Response data error:', error);
-      res.status(500).json({ error: 'Response processing error' });
-    });
-  }
+  });
 }
 
 module.exports = async (req, res) => {

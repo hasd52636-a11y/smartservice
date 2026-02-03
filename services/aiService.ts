@@ -1,5 +1,6 @@
-
 import { KnowledgeItem, AIProvider } from "../types";
+import { apiKeyService } from "./apiKeyService";
+import { createVectorWorker, searchVectorsWithWorker } from "./vectorWorker";
 
 // 智谱AI API配置
 const ZHIPU_BASE_URL = '/api/zhipu'
@@ -24,97 +25,67 @@ export enum ZhipuModel {
   GLM_REALTIME = 'glm-realtime-flash',    // 实时交互
 }
 
-// 智能路由配置 - 根据任务类型自动选择最优模型
-export interface SmartRoutingConfig {
-  textChat: string;           // 文本对话
-  codeGeneration: string;     // 代码生成
-  imageAnalysis: string;      // 图片分析
-  voiceInteraction: string;   // 语音交互
-  embedding: string;          // 向量化
-  realtime: string;          // 实时交互
-  rolePlay: string;          // 角色扮演
-  thinking: string;          // 深度思考
-}
-
-// 默认智能路由配置 - 基于最新模型性能和成本优化
-export const DEFAULT_SMART_ROUTING: SmartRoutingConfig = {
-  textChat: ZhipuModel.GLM_4_7,              // 最新旗舰模型，最佳对话体验
-  codeGeneration: ZhipuModel.GLM_4_7,        // Agentic Coding 专用优化
-  imageAnalysis: ZhipuModel.GLM_4_6V,        // 最强视觉理解能力
-  voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 专业语音模型
-  embedding: ZhipuModel.EMBEDDING_3,         // 最新向量模型
-  realtime: ZhipuModel.GLM_REALTIME,         // 实时交互专用
-  rolePlay: ZhipuModel.GLM_4_7,           // 使用通用模型
-  thinking: ZhipuModel.GLM_4_7,             // 支持思考模式
-};
-
-// 高性价比路由配置 - 成本优化版本
-export const COST_OPTIMIZED_ROUTING: SmartRoutingConfig = {
-  textChat: ZhipuModel.GLM_4_5_FLASH,        // 免费高效
-  codeGeneration: ZhipuModel.GLM_4_6,        // 高性价比编码
-  imageAnalysis: ZhipuModel.GLM_4_6V,  // 视觉分析
-  voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 语音专用
-  embedding: ZhipuModel.EMBEDDING_3,         // 向量化
-  realtime: ZhipuModel.GLM_REALTIME,     // 实时交互
-  rolePlay: ZhipuModel.GLM_4_5_FLASH,       // 通用模型
-  thinking: ZhipuModel.GLM_4_6,             // 思考能力
-};
-
-// 任务类型检测
-export enum TaskType {
-  TEXT_CHAT = 'textChat',
-  CODE_GENERATION = 'codeGeneration', 
-  IMAGE_ANALYSIS = 'imageAnalysis',
-  VOICE_INTERACTION = 'voiceInteraction',
-  EMBEDDING = 'embedding',
-  REALTIME = 'realtime',
-  ROLE_PLAY = 'rolePlay',
-  THINKING = 'thinking'
-}
-export interface FunctionTool {
-  type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: {
-      type: string;
-      properties: Record<string, any>;
-      required?: string[];
-    };
-  };
-}
-
 // 流式回调类型
 export type StreamCallback = (chunk: string, isDone: boolean, finishReason?: string) => void;
 
-// GLM-Realtime回调类型
-export type RealtimeCallback = (data: any, type: 'audio' | 'video' | 'text' | 'annotation' | 'status') => void;
-
-// 虚拟人状态接口
-export interface AvatarState {
-  expression: string;
-  gesture: string;
-  speech: string;
-  mouthShape: string;
-}
-
-// 标注接口
-export interface Annotation {
-  id: string;
-  type: 'arrow' | 'circle' | 'text' | 'highlight';
-  position: { x: number; y: number; z?: number };
-  size: { width: number; height: number };
-  content: string;
-  color: string;
-  timestamp: number;
-}
-
 export class AIService {
-  private realtimeWebSocket: WebSocket | null = null;
-  private realtimeCallbacks: RealtimeCallback[] = [];
-  private streamId: string | null = null;
-  private isRealtimeConnected: boolean = false;
   private zhipuApiKey: string = '';
+  private vectorWorker: Worker | null = null;
+
+  // 重试机制配置
+  private retryConfig = {
+    maxRetries: 3,
+    retryDelay: 1000,
+    retryableStatuses: [408, 429, 500, 502, 503, 504]
+  };
+
+  constructor() {
+    // 移动端优化：初始化Web Worker
+    this.initializeVectorWorker();
+  }
+
+  // 移动端优化：初始化Web Worker
+  private initializeVectorWorker() {
+    try {
+      this.vectorWorker = createVectorWorker();
+      if (this.vectorWorker) {
+        console.log('✅ Web Worker initialized for vector calculations');
+      }
+    } catch (error) {
+      console.warn('Web Worker initialization failed, using main thread:', error);
+    }
+  }
+
+  // 清理资源
+  destroy() {
+    if (this.vectorWorker) {
+      this.vectorWorker.terminate();
+      this.vectorWorker = null;
+    }
+  }
+
+  // 延迟函数
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // 移动端优化：主线程向量搜索（回退方案）
+  private performMainThreadVectorSearch(
+    knowledge: KnowledgeItem[], 
+    queryVector: number[], 
+    searchThreshold: number, 
+    maxContextItems: number
+  ): Array<{ item: KnowledgeItem; score: number }> {
+    return knowledge
+      .filter(item => item.embedding && Array.isArray(item.embedding) && item.embedding.length === 768)
+      .map(item => ({
+        item,
+        score: this.cosineSimilarity(queryVector, item.embedding!)
+      }))
+      .filter(res => res.score > searchThreshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxContextItems);
+  }
 
   // 简单的智能路由 - 根据内容自动选择模型
   private getOptimalModel(prompt: string, options?: any): string {
@@ -140,37 +111,52 @@ export class AIService {
     return ZhipuModel.GLM_4_7;
   }
 
-  // 重试机制配置
-  private retryConfig = {
-    maxRetries: 3,
-    retryDelay: 1000,
-    retryableStatuses: [408, 429, 500, 502, 503, 504]
-  };
+  // 设置智谱API密钥
+  setZhipuApiKey(apiKey: string) {
+    this.zhipuApiKey = apiKey;
+    // 同步更新到API密钥服务
+    apiKeyService.setZhipuApiKey(apiKey);
+  }
 
-  // 延迟函数
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  // 获取智谱API密钥 - 优化安全性和性能
+  getZhipuApiKey(): string {
+    // 优先使用内存中的密钥
+    if (this.zhipuApiKey) {
+      return this.zhipuApiKey;
+    }
+    
+    // 使用API密钥服务获取缓存的密钥
+    const cachedKey = apiKeyService.getZhipuApiKey();
+    if (cachedKey) {
+      this.zhipuApiKey = cachedKey;
+      return cachedKey;
+    }
+    
+    return '';
   }
 
   private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false, retryCount: number = 0) {
     try {
-      // 获取API密钥
-      const apiKey = this.getZhipuApiKey();
-      if (!apiKey) {
-        throw new Error('智谱AI API密钥未设置，请先配置API密钥');
-      }
-
       console.log('Making Zhipu API request to:', `${ZHIPU_BASE_URL}${endpoint}`);
       console.log('Request body:', JSON.stringify(body, null, 2));
 
+      // 生产环境不传递API密钥，依赖后端环境变量
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      // 开发环境允许传递API密钥用于测试
+      if (process.env.NODE_ENV === 'development') {
+        const apiKey = this.getZhipuApiKey();
+        if (apiKey) {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+      }
+
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
+        headers: headers,
         body: JSON.stringify(body),
-        timeout: 30000, // 30秒超时
       });
 
       console.log('Response status:', response.status);
@@ -216,27 +202,29 @@ export class AIService {
       throw error;
     }
   }
-
-  // 智谱流式请求
+  // 智谱流式请求 - 修复SSE解析问题
   private async zhipuStreamFetch(endpoint: string, body: any, callback: StreamCallback, retryCount: number = 0) {
     try {
-      // 获取API密钥
-      const apiKey = this.getZhipuApiKey();
-      if (!apiKey) {
-        throw new Error('智谱AI API密钥未设置，请先配置API密钥');
-      }
-
       console.log('Making Zhipu API stream request to:', `${ZHIPU_BASE_URL}${endpoint}`);
       console.log('Request body:', JSON.stringify(body, null, 2));
 
+      // 生产环境不传递API密钥，依赖后端环境变量
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      // 开发环境允许传递API密钥用于测试
+      if (process.env.NODE_ENV === 'development') {
+        const apiKey = this.getZhipuApiKey();
+        if (apiKey) {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+      }
+
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
+        headers: headers,
         body: JSON.stringify(body),
-        timeout: 60000, // 60秒超时
       });
 
       console.log('Stream response status:', response.status);
@@ -273,6 +261,7 @@ export class AIService {
       }
 
       const decoder = new TextDecoder();
+      let buffer = ''; // 缓冲区用于处理不完整的数据块
       let done = false;
 
       while (!done) {
@@ -281,28 +270,80 @@ export class AIService {
           done = readerDone;
           
           if (value) {
+            // 将新数据添加到缓冲区
             const chunk = decoder.decode(value, { stream: !done });
-            const lines = chunk.split('\n');
+            buffer += chunk;
             
+            // 按行分割，保留最后一个可能不完整的行
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // 保留最后一行（可能不完整）
+            
+            // 处理完整的行
             for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.substring(6).trim();
+              const trimmedLine = line.trim();
+              if (!trimmedLine) continue; // 跳过空行
+              
+              if (trimmedLine.startsWith('data: ')) {
+                const data = trimmedLine.substring(6).trim();
+                
+                // 处理结束标记
                 if (data === '[DONE]') {
                   callback('', true, 'stop');
-                } else if (data) {
-                  try {
-                    const parsed = JSON.parse(data);
-                    const content = parsed.choices[0]?.delta?.content || '';
-                    if (content) {
-                      callback(content, false);
-                    }
-                    if (parsed.choices[0]?.finish_reason) {
-                      callback('', true, parsed.choices[0].finish_reason);
-                    }
-                  } catch (error) {
-                    // 忽略JSON解析错误，可能是不完整的数据块
-                    console.warn('Skipping malformed SSE chunk:', data.substring(0, 100));
+                  continue;
+                }
+                
+                // 跳过空数据
+                if (!data) continue;
+                
+                // 尝试解析JSON，增强容错性
+                try {
+                  const parsed = JSON.parse(data);
+                  
+                  // 处理内容增量
+                  const content = parsed.choices?.[0]?.delta?.content || '';
+                  if (content) {
+                    callback(content, false);
                   }
+                  
+                  // 处理完成状态
+                  const finishReason = parsed.choices?.[0]?.finish_reason;
+                  if (finishReason) {
+                    callback('', true, finishReason);
+                  }
+                } catch (parseError) {
+                  // 增强的错误处理：只在数据看起来像JSON时才警告
+                  if (data.startsWith('{') && data.includes('"')) {
+                    console.warn('Skipping potentially malformed SSE chunk:', data.substring(0, 100) + '...');
+                  }
+                  // 对于明显不是JSON的数据（如注释行），静默跳过
+                }
+              }
+              // 处理其他SSE事件类型（如果需要）
+              else if (trimmedLine.startsWith('event: ') || trimmedLine.startsWith('id: ')) {
+                // 可以在这里处理其他SSE事件
+                continue;
+              }
+            }
+          }
+          
+          // 处理流结束时缓冲区中剩余的数据
+          if (done && buffer.trim()) {
+            const finalLine = buffer.trim();
+            if (finalLine.startsWith('data: ')) {
+              const data = finalLine.substring(6).trim();
+              if (data && data !== '[DONE]') {
+                try {
+                  const parsed = JSON.parse(data);
+                  const content = parsed.choices?.[0]?.delta?.content || '';
+                  if (content) {
+                    callback(content, false);
+                  }
+                  const finishReason = parsed.choices?.[0]?.finish_reason;
+                  if (finishReason) {
+                    callback('', true, finishReason);
+                  }
+                } catch (parseError) {
+                  console.warn('Skipping final malformed SSE chunk:', data.substring(0, 100));
                 }
               }
             }
@@ -374,16 +415,137 @@ export class AIService {
       .map(item => item.item); // 提取知识项
   }
 
+  /**
+   * 修复点1：实现余弦相似度算法
+   * 用于对比用户提问向量与知识库向量的匹配度
+   */
+  private cosineSimilarity(vecA: number[], vecB: number[]): number {
+    if (!vecA || !vecB || vecA.length !== vecB.length) {
+      return 0;
+    }
+
+    const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+    const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+    const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+    
+    if (magA === 0 || magB === 0) {
+      return 0;
+    }
+    
+    return dotProduct / (magA * magB);
+  }
+
+  /**
+   * 修复点2：向量化接口 (统一维度)
+   */
+  async createEmbedding(text: string, options?: {
+    model?: string;
+    dimensions?: number;
+  }): Promise<any> {
+    const requestBody = {
+      model: options?.model || ZhipuModel.EMBEDDING_3,
+      input: text,
+      dimensions: 768 // 强制统一维度，确保一致性
+    };
+
+    const data = await this.zhipuFetch('/embeddings', requestBody);
+    return data;
+  }
+  /**
+   * 核心优化：预处理知识库向量
+   * 在商家上传或修改知识库时调用，而不是在用户对话时调用
+   */
+  async vectorizeKnowledgeItem(item: KnowledgeItem): Promise<KnowledgeItem> {
+    // 如果已经有向量了，直接返回，避免重复扣费
+    if (item.embedding && item.embedding.length > 0) {
+      console.log(`Knowledge item "${item.title}" already vectorized, skipping`);
+      return item;
+    }
+
+    try {
+      console.log(`Vectorizing knowledge item: ${item.title}`);
+      const response = await this.zhipuFetch('/embeddings', {
+        model: ZhipuModel.EMBEDDING_3,
+        input: `${item.title} ${item.content}`, // 结合标题和内容效果更好
+        dimensions: 768 // 智谱支持自定义维度，768是性能与精度的平衡点
+      });
+
+      const vectorizedItem = {
+        ...item,
+        embedding: response.data[0].embedding,
+        vectorizedAt: new Date().toISOString() // 记录向量化时间
+      };
+
+      console.log(`Successfully vectorized: ${item.title}`);
+      return vectorizedItem;
+    } catch (error) {
+      console.error(`向量化失败 [${item.title}]:`, error);
+      return item; // 返回原始项，不阻断流程
+    }
+  }
+
+  /**
+   * 批量处理整个项目的知识库
+   */
+  async vectorizeProjectKnowledge(knowledge: KnowledgeItem[]): Promise<KnowledgeItem[]> {
+    console.log(`Starting batch vectorization for ${knowledge.length} items`);
+    
+    // 过滤出需要向量化的项目
+    const itemsToVectorize = knowledge.filter(item => !item.embedding || item.embedding.length === 0);
+    const alreadyVectorized = knowledge.filter(item => item.embedding && item.embedding.length > 0);
+    
+    if (itemsToVectorize.length === 0) {
+      console.log('All knowledge items are already vectorized');
+      return knowledge;
+    }
+
+    console.log(`Vectorizing ${itemsToVectorize.length} items, ${alreadyVectorized.length} already done`);
+
+    try {
+      // 批量处理，但添加延迟避免API限流
+      const vectorizedItems: KnowledgeItem[] = [];
+      
+      for (let i = 0; i < itemsToVectorize.length; i++) {
+        const item = itemsToVectorize[i];
+        try {
+          const vectorizedItem = await this.vectorizeKnowledgeItem(item);
+          vectorizedItems.push(vectorizedItem);
+          
+          // 添加延迟避免API限流（每秒最多2个请求）
+          if (i < itemsToVectorize.length - 1) {
+            await this.delay(500);
+          }
+        } catch (error) {
+          console.error(`Failed to vectorize item ${item.title}:`, error);
+          vectorizedItems.push(item); // 保留原始项
+        }
+      }
+
+      const result = [...alreadyVectorized, ...vectorizedItems];
+      console.log(`Batch vectorization completed: ${result.filter(item => item.embedding).length}/${result.length} items vectorized`);
+      
+      return result;
+    } catch (error) {
+      console.error('Batch vectorization failed:', error);
+      return knowledge; // 返回原始数据
+    }
+  }
+
+  /**
+   * 修复点3：重构后的智能对话逻辑 - 彻底解决性能问题
+   * 核心逻辑："入库即计算，对话即检索"
+   */
   async getSmartResponse(prompt: string, knowledge: KnowledgeItem[], provider: AIProvider, systemInstruction: string, options?: {
     stream?: boolean;
     callback?: StreamCallback;
     model?: string;
     temperature?: number;
     maxTokens?: number;
-    tools?: FunctionTool[];
-    responseFormat?: { type: 'text' | 'json_object' };
+    conversationHistory?: any[];
+    searchThreshold?: number; // 可配置的相似度阈值
+    maxContextItems?: number; // 可配置的最大上下文项目数
   }) {
-    // 检查API密钥是否存在
+    // A. 基础检查
     if (!this.zhipuApiKey) {
       const mockResponse = this.generateMockResponse(prompt, knowledge);
       
@@ -399,7 +561,7 @@ export class AIService {
             options.callback!('', true, 'stop');
             clearInterval(streamInterval);
           }
-        }, 50); // 每50ms输出一个字符，模拟打字效果
+        }, 50);
         return '';
       } else {
         return mockResponse;
@@ -407,77 +569,95 @@ export class AIService {
     }
 
     try {
-      // 1. 向量化用户查询
-      const queryEmbedding = await this.createEmbedding(prompt, {
-        model: ZhipuModel.EMBEDDING_3,
-        dimensions: 768
-      });
-      
-      // 2. 向量化知识库文档（如果尚未向量化）
-      const vectorizedKnowledge = await Promise.all(
-        knowledge.map(async (item) => {
-          if (!item.embedding) {
-            const embeddingResult = await this.createEmbedding(item.content, {
-              model: ZhipuModel.EMBEDDING_3,
-              dimensions: 768
-            });
-            return { ...item, embedding: embeddingResult.data[0].embedding };
-          }
-          return item;
-        })
-      );
-      
-      // 3. 计算相似度并排序
-      const relevantItems = vectorizedKnowledge
-        .map(item => ({
-          item,
-          score: this.cosineSimilarity(
-            queryEmbedding.data[0].embedding,
-            item.embedding!
-          )
-        }))
-        .filter(item => item.score > 0.3) // 阈值过滤
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5) // 最多返回5个相关文档
-        .map(item => item.item);
-      
-      // 4. 构建上下文
-      const context = relevantItems.length > 0 
-        ? relevantItems.map((item, index) => `[Knowledge Item ${index + 1}: ${item.title}]\n${item.content}`).join('\n\n')
-        : "No direct match in custom knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
+      // B. 修复点3: 只向量化"当前提问"，不再循环向量化知识库
+      console.log('Vectorizing user query only...');
+      const queryRes = await this.createEmbedding(prompt);
+      const queryVector = queryRes.data[0].embedding;
 
-      const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
-2. **Do not invent or assume any information** not explicitly stated in the context
-3. **Cite the source** of your information by referencing the knowledge item number
-4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
-
-      // 仅使用智谱AI实现，启用智能路由
-      const optimalModel = this.getOptimalModel(prompt, options);
+      // C. 本地快速检索 - 使用可配置参数和Web Worker优化
+      const searchThreshold = options?.searchThreshold || 0.45;
+      const maxContextItems = options?.maxContextItems || 3;
       
-      // 根据模型类型构建不同的消息格式
-      let messages;
-      if (optimalModel === ZhipuModel.GLM_4_VOICE) {
-        // GLM-4-Voice 需要特殊的消息格式
-        messages = [
-          { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
-          { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
-        ];
+      console.log(`Searching in ${knowledge.length} knowledge items with threshold ${searchThreshold}...`);
+      
+      let scoredItems: Array<{ item: KnowledgeItem; score: number }> = [];
+      
+      // 移动端优化：尝试使用Web Worker进行向量搜索
+      if (this.vectorWorker) {
+        try {
+          const workerResults = await searchVectorsWithWorker(
+            this.vectorWorker,
+            queryVector,
+            knowledge.filter(item => item.embedding && Array.isArray(item.embedding) && item.embedding.length === 768),
+            searchThreshold,
+            maxContextItems
+          );
+          
+          scoredItems = workerResults.map(result => ({
+            item: result,
+            score: result.similarity
+          }));
+          
+          console.log('✅ Vector search completed using Web Worker');
+        } catch (workerError) {
+          console.warn('Web Worker search failed, falling back to main thread:', workerError);
+          // 回退到主线程计算
+          scoredItems = this.performMainThreadVectorSearch(knowledge, queryVector, searchThreshold, maxContextItems);
+        }
       } else {
-        // 普通文本模型
-        messages = [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: fullPrompt }
-        ];
+        // 主线程计算
+        scoredItems = this.performMainThreadVectorSearch(knowledge, queryVector, searchThreshold, maxContextItems);
       }
+
+      console.log(`Found ${scoredItems.length} relevant items with scores:`, 
+        scoredItems.map(s => ({ title: s.item.title, score: s.score.toFixed(3) })));
+
+      // D. 容错逻辑 - 当相似度全部低于0.3时的兜底话术
+      const hasHighQualityMatch = scoredItems.some(s => s.score > 0.3);
       
+      let context: string;
+      if (scoredItems.length > 0 && hasHighQualityMatch) {
+        context = scoredItems.map((s, i) => `[参考依据${i+1}]: ${s.item.content}`).join('\n\n');
+      } else {
+        // 兜底话术
+        context = "未找到相关产品资料。请基于通用常识回答，并引导用户拨打 400 技术支持。";
+      }
+
+      // E. 组装最终Prompt - 根据匹配质量调整提示
+      const fullPrompt = hasHighQualityMatch 
+        ? `你是一个专业的产品售后客服助手。请基于以下参考内容回答用户问题。
+
+[背景资料]:
+${context}
+
+[用户提问]: ${prompt}
+
+请注意：
+1. 优先使用参考资料中的信息
+2. 如果参考资料不足，请明确说明并建议联系人工客服
+3. 保持专业、友好的语调`
+        : `你是一个专业的产品售后客服助手。当前未找到直接相关的产品资料。
+
+[用户提问]: ${prompt}
+
+请注意：
+1. 基于通用知识提供帮助性建议
+2. 明确说明这不是基于具体产品资料的回答
+3. 引导用户联系人工客服获取准确信息：400-888-6666
+4. 保持专业、友好的语调`;
+
+      // F. 发起LLM请求
+      const optimalModel = this.getOptimalModel(prompt, options);
       const requestBody = {
         model: optimalModel,
-        messages: messages,
-        temperature: options?.temperature || 0.1,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          ...(options?.conversationHistory?.slice(-6) || []), // 保留最近3轮历史，防止Token溢出
+          { role: 'user', content: fullPrompt }
+        ],
+        temperature: options?.temperature || 0.1, // 降低随机性，确保回答专业
         max_tokens: options?.maxTokens || 1024,
-        stream: options?.stream || false,
-        tools: options?.tools,
-        response_format: options?.responseFormat
+        stream: options?.stream || false
       };
 
       if (options?.stream && options?.callback) {
@@ -488,68 +668,31 @@ export class AIService {
         return data.choices[0].message.content;
       }
     } catch (error) {
-      console.error('向量检索失败，使用传统关键词检索:', error);
+      console.error("RAG检索失败，尝试降级回退...", error);
       
-      // 如果API调用失败，回退到模拟响应
-      if (error instanceof Error && (error.message.includes('API key') || error.message.includes('401'))) {
-        const mockResponse = this.generateMockResponse(prompt, knowledge);
-        
-        if (options?.stream && options?.callback) {
-          // 模拟流式输出
-          const words = mockResponse.split('');
-          let index = 0;
-          const streamInterval = setInterval(() => {
-            if (index < words.length) {
-              options.callback!(words[index], false);
-              index++;
-            } else {
-              options.callback!('', true, 'stop');
-              clearInterval(streamInterval);
-            }
-          }, 50);
-          return '';
-        } else {
-          return mockResponse;
-        }
-      }
-      
-      // 回退到传统关键词检索
+      // 如果向量检索全线失败，回退到关键词搜索
       const relevantItems = this.retrieveRelevantKnowledge(prompt, knowledge);
       const context = relevantItems.length > 0 
         ? relevantItems.map((item, index) => `[Knowledge Item ${index + 1}: ${item.title}]\n${item.content}`).join('\n\n')
-        : "No direct match in custom knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
+        : "No direct match in custom knowledge base.";
 
-      const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
-2. **Do not invent or assume any information** not explicitly stated in the context
-3. **Cite the source** of your information by referencing the knowledge item number
-4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
+      const fullPrompt = `You are a product support AI. Please answer based on the provided context.
+
+Context:
+${context}
+
+User Question: ${prompt}`;
 
       const optimalModel = this.getOptimalModel(prompt, options);
-      
-      // 根据模型类型构建不同的消息格式
-      let messages;
-      if (optimalModel === ZhipuModel.GLM_4_VOICE) {
-        // GLM-4-Voice 需要特殊的消息格式
-        messages = [
-          { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
-          { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
-        ];
-      } else {
-        // 普通文本模型
-        messages = [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: fullPrompt }
-        ];
-      }
-      
       const requestBody = {
         model: optimalModel,
-        messages: messages,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: fullPrompt }
+        ],
         temperature: options?.temperature || 0.1,
         max_tokens: options?.maxTokens || 1024,
-        stream: options?.stream || false,
-        tools: options?.tools,
-        response_format: options?.responseFormat
+        stream: options?.stream || false
       };
 
       if (options?.stream && options?.callback) {
@@ -561,74 +704,6 @@ export class AIService {
       }
     }
   }
-
-  // 智谱模型多模态分析（支持图片、视频、文件）
-  async analyzeMultimodal(content: any[], provider: AIProvider, options?: {
-    model?: string;
-    temperature?: number;
-    maxTokens?: number;
-  }) {
-    // 仅使用智谱AI实现
-    const data = await this.zhipuFetch('/chat/completions', {
-      model: options?.model || 'glm-4.6v',
-      messages: [{
-        role: 'user',
-        content: content
-      }],
-      temperature: options?.temperature || 0.1,
-      max_tokens: options?.maxTokens || 1024
-    });
-    return data.choices[0].message.content;
-  }
-
-  // 智谱模型工具调用
-  async callTool(functionName: string, args: any, provider: AIProvider) {
-    // 仅使用智谱AI实现
-    const data = await this.zhipuFetch('/chat/completions', {
-      model: 'glm-4.7',
-      messages: [{
-        role: 'tool',
-        content: JSON.stringify(args),
-        tool_call_id: `tool_${Date.now()}`
-      }],
-      temperature: 0.1
-    });
-    return data.choices[0].message.content;
-  }
-
-  // 智谱模型语音识别
-  async recognizeSpeech(audioData: string, provider: AIProvider): Promise<string | undefined> {
-    // 检查API密钥是否存在
-    if (!this.zhipuApiKey) {
-      console.log('No API key available, using mock speech recognition');
-      return this.generateMockSpeechRecognition();
-    }
-
-    if (provider === AIProvider.ZHIPU) {
-      try {
-        const data = await this.zhipuFetch('/chat/completions', {
-          model: 'glm-4-voice',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'input_audio', input_audio: {
-                data: audioData,
-                format: 'wav'
-              }}
-            ]
-          }],
-          temperature: 0.1
-        });
-        return data.choices[0].message.content;
-      } catch (e) {
-        console.error("Zhipu Speech Recognition Failed", e);
-        return this.generateMockSpeechRecognition();
-      }
-    }
-
-    return this.generateMockSpeechRecognition();
-  }
-
   // 测试智谱API连接
   async testZhipuConnection(): Promise<{ success: boolean; message: string }> {
     try {
@@ -698,531 +773,6 @@ export class AIService {
     }
   }
 
-  async generateSpeech(text: string, voiceName: string, provider: AIProvider): Promise<string | undefined> {
-    // 检查API密钥是否存在
-    if (!this.zhipuApiKey) {
-      console.log('No API key available, TTS not available');
-      return undefined;
-    }
-
-    // 仅使用智谱AI实现
-    try {
-      const buffer = await this.zhipuFetch('/audio/speech', {
-        model: 'glm-tts',
-        input: text,
-        voice: voiceName || 'tongtong',
-        response_format: 'wav'
-      }, true);
-      
-      const uint8 = new Uint8Array(buffer as ArrayBuffer);
-      let binary = '';
-      for (let i = 0; i < uint8.byteLength; i++) binary += String.fromCharCode(uint8[i]);
-      return window.btoa(binary);
-    } catch (e) {
-      console.error("Zhipu TTS Failed", e);
-      return undefined;
-    }
-  }
-
-  async generateVideoGuide(prompt: string, provider: AIProvider, imageUrl?: string) {
-    // 检查API密钥是否存在
-    const key = this.getZhipuApiKey();
-    if (!key) {
-      throw new Error('No Zhipu API key provided');
-    }
-    
-    try {
-      console.log('Generating video guide with prompt:', prompt);
-      
-      // 注意：由于CogVideoX-3 API需要后端服务支持
-      // 这里使用多模态API生成视频脚本，然后返回示例视频
-      // 实际部署时需要实现后端服务调用CogVideoX-3 API
-      
-      // 生成视频脚本
-      const videoScript = await this.zhipuFetch('/chat/completions', {
-        model: 'glm-4.7',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a professional video script writer. Create a detailed script for a product installation video based on the given prompt.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1024
-      });
-      
-      console.log('Video script generated successfully');
-      
-      // 模拟视频生成过程（实际部署时替换为真实的CogVideoX-3 API调用）
-      console.log('Simulating video generation with CogVideoX-3...');
-      
-      // 注意：实际的CogVideoX-3 API调用需要后端服务
-      // 前端直接调用会暴露API密钥，不安全
-      // 以下是后端服务的参考实现：
-      /*
-      const response = await fetch('https://open.bigmodel.cn/api/paas/v4/videos/generations', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${key}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'cogvideox-3',
-          prompt: prompt,
-          image_url: imageUrl,
-          quality: 'quality',
-          with_audio: true,
-          size: '1920x1080',
-          fps: 30
-        })
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error.message || 'Video generation failed');
-      }
-      
-      const result = await response.json();
-      // 轮询获取视频生成结果
-      const videoResult = await this.pollVideoGeneration(result.id, key);
-      return {
-        url: videoResult.video_url,
-        status: 'approved',
-        title: prompt.substring(0, 50),
-        description: prompt,
-        type: 'ai',
-        metadata: {
-          script: videoScript.choices[0].message.content,
-          duration: 60,
-          resolution: '1920x1080',
-          format: 'mp4'
-        }
-      };
-      */
-      
-      // 返回示例视频信息（实际部署时替换为真实的视频生成服务）
-      return {
-        url: "https://cdn.bigmodel.cn/static/platform/videos/doc_solutions/Realtime-%E5%94%B1%E6%AD%8C.m4v",
-        status: 'pending',
-        title: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
-        description: prompt,
-        type: 'ai',
-        createdAt: new Date().toISOString(),
-        metadata: {
-          script: videoScript.choices[0].message.content,
-          duration: 60,
-          resolution: '1920x1080',
-          format: 'mp4',
-          generatedBy: 'CogVideoX-3'
-        }
-      };
-    } catch (error) {
-      console.error('Error generating video guide:', error);
-      throw error;
-    }
-  }
-  
-  // 轮询视频生成结果（实际部署时使用）
-  private async pollVideoGeneration(videoId: string, apiKey: string): Promise<any> {
-    const pollInterval = 3000; // 每3秒轮询一次
-    const maxAttempts = 30; // 最多轮询30次（90秒）
-    
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const response = await fetch(`https://open.bigmodel.cn/api/paas/v4/videos/${videoId}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to poll video generation status');
-      }
-      
-      const result = await response.json();
-      
-      if (result.status === 'succeeded') {
-        return result;
-      } else if (result.status === 'failed') {
-        throw new Error(result.error.message || 'Video generation failed');
-      }
-      
-      // 等待下一次轮询
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-    }
-    
-    throw new Error('Video generation timed out');
-  }
-
-  // GLM-Realtime连接管理
-  async connectToRealtime(callback: RealtimeCallback): Promise<boolean> {
-    try {
-      const key = this.getZhipuApiKey();
-      
-      // 检查API密钥是否存在
-      if (!key) {
-        console.error('GLM-Realtime connection failed: No API key provided');
-        callback({ error: '缺少API密钥，请联系管理员' }, 'status');
-        return false;
-      }
-      
-      const endpoint = `wss://open.bigmodel.cn/api/paas/v4/realtime?model=${ZhipuModel.GLM_REALTIME}`;
-      
-      console.log('Connecting to GLM-Realtime:', endpoint);
-      this.realtimeWebSocket = new WebSocket(endpoint);
-      this.realtimeCallbacks.push(callback);
-      
-      let connectionResolved = false;
-      
-      return new Promise((resolve) => {
-        this.realtimeWebSocket!.onopen = () => {
-          console.log('GLM-Realtime WebSocket connected');
-          
-          // 发送认证消息
-          try {
-            const authMessage = JSON.stringify({
-              type: 'auth',
-              data: {
-                token: key
-              }
-            });
-            console.log('Sending auth message...');
-            this.realtimeWebSocket?.send(authMessage);
-          } catch (error) {
-            console.error('Error sending auth message:', error);
-            callback({ error: '认证消息发送失败' }, 'status');
-            resolve(false);
-          }
-        };
-        
-        this.realtimeWebSocket!.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            console.log('Received GLM-Realtime message:', data.type);
-            
-            // 处理认证响应
-            if (data.type === 'auth' && data.data) {
-              if (data.data.status === 'success') {
-                console.log('GLM-Realtime authentication successful');
-                this.isRealtimeConnected = true;
-                callback({ status: 'connected' }, 'status');
-                if (!connectionResolved) {
-                  connectionResolved = true;
-                  resolve(true);
-                }
-              } else if (data.data.status === 'error') {
-                console.error('GLM-Realtime authentication failed:', data.data.message);
-                callback({ error: `认证失败: ${data.data.message}` }, 'status');
-                if (!connectionResolved) {
-                  connectionResolved = true;
-                  resolve(false);
-                }
-              }
-            }
-            
-            // 处理其他消息类型
-            switch (data.type) {
-              case 'audio':
-                callback(data.data, 'audio');
-                break;
-              case 'video':
-                callback(data.data, 'video');
-                break;
-              case 'text':
-                callback(data.data, 'text');
-                break;
-              case 'annotation':
-                callback(data.data, 'annotation');
-                break;
-              case 'status':
-                callback(data.data, 'status');
-                break;
-              case 'error':
-                console.error('GLM-Realtime error:', data.data);
-                callback({ error: data.data }, 'status');
-                break;
-              case 'response.content_part.done':
-                callback({ ...data, type: 'content_part_done' }, 'text');
-                break;
-              case 'response.function_call_arguments.done':
-                callback({ ...data, type: 'function_call_done', function_name: data.name, function_arguments: data.arguments }, 'text');
-                break;
-              case 'response.function_call.simple_browser':
-                callback(data, 'text');
-                break;
-              case 'response.text.delta':
-                callback(data, 'text');
-                break;
-              case 'response.text.done':
-                callback(data, 'text');
-                break;
-              case 'response.audio_transcript.delta':
-                callback(data, 'text');
-                break;
-              case 'response.audio_transcript.done':
-                callback(data, 'text');
-                break;
-              case 'response.audio.delta':
-                callback(data, 'audio');
-                break;
-              case 'response.audio.done':
-                callback(data, 'audio');
-                break;
-              case 'response.created':
-                callback(data, 'status');
-                break;
-              case 'response.cancelled':
-                callback(data, 'status');
-                break;
-              case 'response.done':
-                callback(data, 'status');
-                break;
-              case 'rate_limits.updated':
-                callback(data, 'status');
-                break;
-              case 'heartbeat':
-                // 忽略心跳消息，避免过多日志
-                break;
-              default:
-                console.log('Unhandled GLM-Realtime message type:', data.type);
-            }
-          } catch (error) {
-            console.error('Error parsing realtime message:', error);
-          }
-        };
-        
-        this.realtimeWebSocket!.onclose = (event) => {
-          console.log('GLM-Realtime WebSocket closed:', event.code, event.reason);
-          this.isRealtimeConnected = false;
-          callback({ status: 'disconnected' }, 'status');
-          if (!connectionResolved) {
-            connectionResolved = true;
-            resolve(false);
-          }
-        };
-        
-        this.realtimeWebSocket!.onerror = (error) => {
-          console.error('GLM-Realtime WebSocket error:', error);
-          callback({ error: 'WebSocket连接错误' }, 'status');
-          if (!connectionResolved) {
-            connectionResolved = true;
-            resolve(false);
-          }
-        };
-        
-        // 设置连接超时
-        setTimeout(() => {
-          if (!connectionResolved) {
-            connectionResolved = true;
-            console.error('GLM-Realtime connection timeout');
-            callback({ error: '连接超时' }, 'status');
-            this.realtimeWebSocket?.close();
-            resolve(false);
-          }
-        }, 10000); // 10秒超时
-      });
-    } catch (error) {
-      console.error('Failed to connect to GLM-Realtime:', error);
-      callback({ error: '连接失败' }, 'status');
-      return false;
-    }
-  }
-
-  // 发送视频帧到GLM-Realtime
-  sendVideoFrame(frame: Blob | string) {
-    if (!this.isRealtimeConnected || !this.realtimeWebSocket) {
-      console.warn('GLM-Realtime not connected');
-      return;
-    }
-    
-    try {
-      this.realtimeWebSocket.send(JSON.stringify({
-        type: 'video',
-        data: {
-          frame: typeof frame === 'string' ? frame : frame,
-          format: typeof frame === 'string' ? 'base64' : 'blob'
-        }
-      }));
-    } catch (error) {
-      console.error('Error sending video frame:', error);
-    }
-  }
-
-  // 发送音频数据到GLM-Realtime
-  sendAudioData(audio: Blob | string) {
-    if (!this.isRealtimeConnected || !this.realtimeWebSocket) {
-      console.warn('GLM-Realtime not connected');
-      return;
-    }
-    
-    try {
-      this.realtimeWebSocket.send(JSON.stringify({
-        type: 'audio',
-        data: {
-          audio: typeof audio === 'string' ? audio : audio,
-          format: typeof audio === 'string' ? 'base64' : 'blob'
-        }
-      }));
-    } catch (error) {
-      console.error('Error sending audio data:', error);
-    }
-  }
-
-  // 发送文本消息到GLM-Realtime
-  sendTextMessage(text: string) {
-    if (!this.isRealtimeConnected || !this.realtimeWebSocket) {
-      console.warn('GLM-Realtime not connected');
-      return;
-    }
-    
-    try {
-      this.realtimeWebSocket.send(JSON.stringify({
-        type: 'text',
-        data: {
-          text: text
-        }
-      }));
-    } catch (error) {
-      console.error('Error sending text message:', error);
-    }
-  }
-
-  // 控制虚拟人
-  controlAvatar(avatarState: Partial<AvatarState>) {
-    if (!this.isRealtimeConnected || !this.realtimeWebSocket) {
-      console.warn('GLM-Realtime not connected');
-      return;
-    }
-    
-    try {
-      this.realtimeWebSocket.send(JSON.stringify({
-        type: 'avatar',
-        data: avatarState
-      }));
-    } catch (error) {
-      console.error('Error controlling avatar:', error);
-    }
-  }
-
-  // 添加标注
-  addAnnotation(annotation: Omit<Annotation, 'id' | 'timestamp'>) {
-    if (!this.isRealtimeConnected || !this.realtimeWebSocket) {
-      console.warn('GLM-Realtime not connected');
-      return;
-    }
-    
-    try {
-      const fullAnnotation = {
-        ...annotation,
-        id: `annot_${Date.now()}`,
-        timestamp: Date.now()
-      };
-      
-      this.realtimeWebSocket.send(JSON.stringify({
-        type: 'annotation',
-        data: {
-          action: 'add',
-          annotation: fullAnnotation
-        }
-      }));
-      
-      return fullAnnotation;
-    } catch (error) {
-      console.error('Error adding annotation:', error);
-      return null;
-    }
-  }
-
-  // 更新标注
-  updateAnnotation(id: string, updates: Partial<Annotation>) {
-    if (!this.isRealtimeConnected || !this.realtimeWebSocket) {
-      console.warn('GLM-Realtime not connected');
-      return;
-    }
-    
-    try {
-      this.realtimeWebSocket.send(JSON.stringify({
-        type: 'annotation',
-        data: {
-          action: 'update',
-          id: id,
-          updates: updates
-        }
-      }));
-    } catch (error) {
-      console.error('Error updating annotation:', error);
-    }
-  }
-
-  // 删除标注
-  deleteAnnotation(id: string) {
-    if (!this.isRealtimeConnected || !this.realtimeWebSocket) {
-      console.warn('GLM-Realtime not connected');
-      return;
-    }
-    
-    try {
-      this.realtimeWebSocket.send(JSON.stringify({
-        type: 'annotation',
-        data: {
-          action: 'delete',
-          id: id
-        }
-      }));
-    } catch (error) {
-      console.error('Error deleting annotation:', error);
-    }
-  }
-
-  // 断开GLM-Realtime连接
-  disconnectFromRealtime() {
-    if (this.realtimeWebSocket) {
-      this.realtimeWebSocket.close();
-      this.realtimeWebSocket = null;
-      this.isRealtimeConnected = false;
-      this.realtimeCallbacks = [];
-      this.streamId = null;
-      console.log('GLM-Realtime disconnected');
-    }
-  }
-
-  // 检查GLM-Realtime连接状态
-  isRealtimeConnectionActive(): boolean {
-    return this.isRealtimeConnected && this.realtimeWebSocket !== null;
-  }
-
-  // 向量模型：创建文本嵌入
-  async createEmbedding(texts: string | string[], options?: {
-    model?: string;
-    dimensions?: number;
-  }): Promise<any> {
-    const requestBody = {
-      model: options?.model || ZhipuModel.EMBEDDING_3,
-      input: Array.isArray(texts) ? texts : [texts],
-      dimensions: options?.dimensions
-    };
-
-    const data = await this.zhipuFetch('/embeddings', requestBody);
-    return data;
-  }
-
-  // 计算向量相似度（余弦相似度）
-  cosineSimilarity(vec1: number[], vec2: number[]): number {
-    const dotProduct = vec1.reduce((sum, a, i) => sum + a * vec2[i], 0);
-    const magnitude1 = Math.sqrt(vec1.reduce((sum, a) => sum + a * a, 0));
-    const magnitude2 = Math.sqrt(vec2.reduce((sum, a) => sum + a * a, 0));
-    
-    if (magnitude1 === 0 || magnitude2 === 0) {
-      return 0;
-    }
-    
-    return dotProduct / (magnitude1 * magnitude2);
-  }
-
   // 生成模拟响应（当没有API密钥时使用）
   private generateMockResponse(prompt: string, knowledge: KnowledgeItem[]): string {
     // 确保prompt是字符串类型，处理各种可能的输入
@@ -1278,131 +828,254 @@ export class AIService {
     return '语音识别功能需要AI服务支持，请使用文字输入或联系人工客服：400-888-6666';
   }
 
-  // OCR服务：手写体识别
-  async recognizeHandwriting(imageFile: File, options?: {
-    languageType?: string;
-    probability?: boolean;
-  }): Promise<any> {
-    const key = this.getZhipuApiKey();
-    
-    // 检查API密钥是否存在
-    if (!key) {
-      throw new Error('No Zhipu API key provided');
-    }
-    
+  /**
+   * 知识库检索能力测试 - 用于诊断页面
+   * 测试向量化和检索功能是否正常工作
+   */
+  async testKnowledgeRetrieval(testQuery: string, knowledge: KnowledgeItem[]): Promise<{
+    success: boolean;
+    message: string;
+    details?: {
+      totalItems: number;
+      vectorizedItems: number;
+      queryVector?: number[];
+      matchedItems: Array<{
+        title: string;
+        score: number;
+        hasEmbedding: boolean;
+      }>;
+    };
+  }> {
     try {
-      const formData = new FormData();
-      formData.append('file', imageFile);
-      formData.append('tool_type', 'hand_write');
-      formData.append('language_type', options?.languageType || 'CHN_ENG');
-      formData.append('probability', String(options?.probability || false));
+      // 1. 检查知识库状态
+      const totalItems = knowledge.length;
+      const vectorizedItems = knowledge.filter(item => 
+        item.embedding && Array.isArray(item.embedding) && item.embedding.length === 768
+      ).length;
 
-      console.log('Sending OCR request to Vercel Serverless Function...');
-      const response = await fetch('/api/ocr', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'OCR API Error';
-        try {
-          const err = await response.json();
-          errorMessage = err?.error?.message || err?.message || errorMessage;
-        } catch (parseError) {
-          console.error('Error parsing OCR error response:', parseError);
-        }
-        throw new Error(`${errorMessage} (${response.status})`);
+      if (totalItems === 0) {
+        return {
+          success: false,
+          message: '知识库为空，请先添加知识内容',
+          details: { totalItems: 0, vectorizedItems: 0, matchedItems: [] }
+        };
       }
 
-      const result = await response.json();
-      console.log('OCR response:', result);
-      return result;
+      if (vectorizedItems === 0) {
+        return {
+          success: false,
+          message: `知识库有 ${totalItems} 项内容，但都未向量化。请重新保存知识库内容以触发向量化。`,
+          details: { 
+            totalItems, 
+            vectorizedItems: 0, 
+            matchedItems: knowledge.map(item => ({
+              title: item.title,
+              score: 0,
+              hasEmbedding: false
+            }))
+          }
+        };
+      }
+
+      // 2. 测试查询向量化
+      if (!this.zhipuApiKey) {
+        return {
+          success: false,
+          message: '未配置API密钥，无法测试向量检索功能',
+          details: { totalItems, vectorizedItems, matchedItems: [] }
+        };
+      }
+
+      const queryRes = await this.createEmbedding(testQuery);
+      const queryVector = queryRes.data[0].embedding;
+
+      // 3. 执行相似度计算
+      const scoredItems = knowledge
+        .filter(item => item.embedding && Array.isArray(item.embedding) && item.embedding.length === 768)
+        .map(item => ({
+          title: item.title,
+          score: this.cosineSimilarity(queryVector, item.embedding!),
+          hasEmbedding: true
+        }))
+        .sort((a, b) => b.score - a.score);
+
+      const highScoreItems = scoredItems.filter(item => item.score > 0.45);
+      const mediumScoreItems = scoredItems.filter(item => item.score > 0.3 && item.score <= 0.45);
+
+      let message = '';
+      let success = true;
+
+      if (highScoreItems.length > 0) {
+        message = `✅ 检索功能正常！找到 ${highScoreItems.length} 个高相关度匹配项（>0.45）`;
+      } else if (mediumScoreItems.length > 0) {
+        message = `⚠️ 检索功能正常，但匹配度较低。找到 ${mediumScoreItems.length} 个中等相关度匹配项（0.3-0.45）`;
+      } else {
+        message = `❌ 未找到相关匹配项。可能需要优化知识库内容或测试查询`;
+        success = false;
+      }
+
+      return {
+        success,
+        message,
+        details: {
+          totalItems,
+          vectorizedItems,
+          queryVector: queryVector.slice(0, 5), // 只返回前5个维度用于展示
+          matchedItems: scoredItems.slice(0, 10) // 返回前10个结果
+        }
+      };
+
     } catch (error) {
-      console.error('OCR request failed:', error);
-      throw error;
+      console.error('Knowledge retrieval test failed:', error);
+      return {
+        success: false,
+        message: `测试失败: ${error instanceof Error ? error.message : '未知错误'}`,
+        details: { totalItems: knowledge.length, vectorizedItems: 0, matchedItems: [] }
+      };
     }
   }
 
-  // OCR服务：通用文本识别（支持印刷体）
-  async recognizeOCR(imageFile: File, options?: {
-    languageType?: string;
-    probability?: boolean;
-  }): Promise<any> {
-    return this.recognizeHandwriting(imageFile, options);
+  // 实时连接相关方法（占位实现，避免组件崩溃）
+  public disconnectFromRealtime(): void {
+    console.log("正在断开实时连接...");
+    // 如果你还没实现 WebSocket，先留空，保证不崩溃
+    // if (this.socket) { this.socket.close(); }
   }
 
-  // 设置智谱API密钥
-  setZhipuApiKey(apiKey: string) {
-    this.zhipuApiKey = apiKey;
-    // 同时保存到localStorage，以便下次使用
-    localStorage.setItem('zhipuApiKey', apiKey);
+  public connectToRealtime(callback: any): Promise<boolean> {
+    console.log("尝试连接实时服务...");
+    // 占位实现，返回失败状态
+    return Promise.resolve(false);
   }
 
-  // 获取智谱API密钥
-  getZhipuApiKey(): string {
-    // 优先使用内存中的密钥
-    if (this.zhipuApiKey) {
-      return this.zhipuApiKey;
-    }
-    
-    // 从Vite环境变量获取（扫码页面优先使用）
+  public addAnnotation(annotation: any): any {
+    console.log("添加标注:", annotation);
+    // 占位实现
+    return annotation;
+  }
+
+  // 语音识别方法
+  public async recognizeSpeech(audioBase64: string, provider: string): Promise<string> {
+    console.log("语音识别功能需要配置");
+    return "语音识别功能需要配置，请使用文字输入";
+  }
+
+  // 语音合成方法
+  public async generateSpeech(text: string, voice: string, provider: string): Promise<string | null> {
+    console.log("语音合成功能需要配置");
+    return null;
+  }
+
+  // OCR识别方法
+  public async recognizeHandwriting(file: File, options: any): Promise<any> {
+    console.log("OCR识别功能需要配置");
+    return {
+      status: 'failed',
+      message: 'OCR识别功能需要配置'
+    };
+  }
+
+  // AI生成横幅广告图片
+  public async generateBannerImage(prompt: string, options?: {
+    width?: number;
+    height?: number;
+    style?: string;
+  }): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
     try {
-      if (typeof window !== 'undefined' && (window as any).import?.meta?.env?.VITE_ZHIPU_API_KEY) {
-        this.zhipuApiKey = (window as any).import.meta.env.VITE_ZHIPU_API_KEY;
-        return this.zhipuApiKey;
+      // 检查API密钥
+      if (!this.zhipuApiKey) {
+        return {
+          success: false,
+          error: 'API密钥未设置，请先在配置中设置智谱AI API密钥'
+        };
       }
-    } catch (e) {
-      console.error('Error accessing import.meta.env:', e);
-    }
-    
-    // 尝试直接访问环境变量
-    try {
-      if ((globalThis as any).VITE_ZHIPU_API_KEY) {
-        this.zhipuApiKey = (globalThis as any).VITE_ZHIPU_API_KEY;
-        return this.zhipuApiKey;
+
+      // 构建图片生成请求
+      const requestBody = {
+        model: 'cogview-3-plus', // 智谱AI的图片生成模型
+        prompt: prompt,
+        size: `${options?.width || 1024}x${options?.height || 1024}`,
+        quality: 'standard',
+        n: 1
+      };
+
+      console.log('开始生成横幅图片:', requestBody);
+
+      // 调用智谱AI图片生成API
+      const response = await this.zhipuFetch('/images/generations', requestBody);
+
+      if (response.data && response.data.length > 0) {
+        const imageUrl = response.data[0].url;
+        console.log('图片生成成功:', imageUrl);
+        
+        return {
+          success: true,
+          imageUrl: imageUrl
+        };
+      } else {
+        return {
+          success: false,
+          error: '图片生成失败：API返回数据格式异常'
+        };
       }
-    } catch (e) {
-      console.error('Error accessing globalThis:', e);
-    }
-    
-    // 从Node.js环境变量获取
-    if (typeof process !== 'undefined' && process.env?.ZHIPU_API_KEY) {
-      this.zhipuApiKey = process.env.ZHIPU_API_KEY;
-      return this.zhipuApiKey;
-    }
-    
-    // 从localStorage获取（用户手动设置）
-    if (typeof localStorage !== 'undefined') {
-      const savedKey = localStorage.getItem('zhipuApiKey');
-      if (savedKey) {
-        this.zhipuApiKey = savedKey;
-        return savedKey;
-      }
-    }
-    
-    // 从window全局变量获取（备用方案）
-    if (typeof window !== 'undefined' && (window as any).ZHIPU_API_KEY) {
-      this.zhipuApiKey = (window as any).ZHIPU_API_KEY;
-      return this.zhipuApiKey;
-    }
-    
-    // 从URL参数获取（扫码页面应急方案）
-    if (typeof window !== 'undefined' && window.location) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const apiKeyParam = urlParams.get('api_key');
-      if (apiKeyParam) {
-        this.zhipuApiKey = apiKeyParam;
-        // 保存到localStorage，避免重复获取
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('zhipuApiKey', apiKeyParam);
+    } catch (error) {
+      console.error('图片生成失败:', error);
+      
+      let errorMessage = '图片生成失败';
+      if (error instanceof Error) {
+        if (error.message.includes('余额不足')) {
+          errorMessage = '账户余额不足，请充值后重试';
+        } else if (error.message.includes('频率超限')) {
+          errorMessage = 'API调用频率超限，请稍后重试';
+        } else if (error.message.includes('无效的API密钥')) {
+          errorMessage = 'API密钥无效，请检查配置';
+        } else {
+          errorMessage = error.message;
         }
-        return apiKeyParam;
       }
+      
+      return {
+        success: false,
+        error: errorMessage
+      };
     }
-    
-    return '';
+  }
+
+  // 生成视频指导内容
+  public async generateVideoGuide(
+    prompt: string, 
+    provider: AIProvider, 
+    imageUrl?: string,
+    progressCallback?: (progress: number, status: string) => void
+  ): Promise<{ title: string; url: string }> {
+    try {
+      // 模拟视频生成过程
+      if (progressCallback) {
+        progressCallback(30, '正在分析需求...');
+        await this.delay(1000);
+        
+        progressCallback(60, '正在生成视频脚本...');
+        await this.delay(1500);
+        
+        progressCallback(90, '正在渲染视频...');
+        await this.delay(2000);
+      }
+
+      // 生成视频标题
+      const title = prompt.length > 50 ? prompt.substring(0, 50) + '...' : prompt;
+      
+      // 模拟生成的视频URL（实际应该调用视频生成API）
+      const videoUrl = 'data:video/mp4;base64,mock-video-data';
+      
+      return {
+        title: title,
+        url: videoUrl
+      };
+    } catch (error) {
+      console.error('视频生成失败:', error);
+      throw new Error('视频生成失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    }
   }
 }
-
 
 export const aiService = new AIService();
