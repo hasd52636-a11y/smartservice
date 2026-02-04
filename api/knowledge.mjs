@@ -4,78 +4,95 @@ export const runtimeConfig = {
   runtime: 'edge',
 };
 
-interface VectorDocument {
-  id: string;
-  content: string;
-  embedding?: number[];
-  metadata: {
-    projectId: string;
-    title: string;
-    type: string;
-    createdAt: string;
-    tags?: string[];
-  };
-}
+/**
+ * @typedef {Object} VectorDocument
+ * @property {string} id
+ * @property {string} content
+ * @property {number[]=} embedding
+ * @property {Object} metadata
+ * @property {string} metadata.projectId
+ * @property {string} metadata.title
+ * @property {string} metadata.type
+ * @property {string} metadata.createdAt
+ * @property {string[]=} metadata.tags
+ */
 
-interface VectorSearchResult {
-  id: string;
-  score: number;
-  content: string;
-  metadata: VectorDocument['metadata'];
-}
+/**
+ * @typedef {Object} VectorSearchResult
+ * @property {string} id
+ * @property {number} score
+ * @property {string} content
+ * @property {Object} metadata
+ */
 
-function getSupabaseClient(apiKey?: string) {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceKey = apiKey || process.env.SUPABASE_KEY;
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Supabase credentials not configured');
-  }
-  
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false
-    },
-    global: {
+/** @type {string|null} */
+let supabaseUrl = null;
+/** @type {string|null} */
+let supabaseKey = null;
+
+/**
+ * @param {string} text
+ * @param {string} apiKey
+ * @returns {Promise<number[]>}
+ */
+async function createEmbedding(text, apiKey) {
+  try {
+    const response = await fetch('https://open.bigmodel.cn/api/paas/v4/embeddings', {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-        'apikey': supabaseServiceKey
-      }
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'embedding-3',
+        input: [text],
+        dimensions: 1024,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Embedding API error: ${response.status}`);
     }
-  });
+
+    const data = await response.json();
+    return normalizeVector(data.data[0].embedding);
+  } catch (error) {
+    console.error('Embedding error:', error);
+    throw error;
+  }
 }
 
-function normalizeVector(vec: number[]): number[] {
+/**
+ * @param {number[]} vec
+ * @returns {number[]}
+ */
+function normalizeVector(vec) {
   const magnitude = Math.sqrt(vec.reduce((sum, a) => sum + a * a, 0));
   if (magnitude === 0) return vec;
   return vec.map(a => a / magnitude);
 }
 
-async function createEmbedding(text: string, apiKey: string): Promise<number[]> {
-  const response = await fetch('https://open.bigmodel.cn/api/paas/v4/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'embedding-3',
-      input: [text],
-      dimensions: 1024,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Embedding API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return normalizeVector(data.data[0].embedding);
+/**
+ * @param {number[]} vec1
+ * @param {number[]} vec2
+ * @returns {number}
+ */
+function cosineSimilarity(vec1, vec2) {
+  if (vec1.length !== vec2.length || vec1.length === 0) return 0;
+  
+  const dotProduct = vec1.reduce((sum, a, i) => sum + a * vec2[i], 0);
+  const magnitude1 = Math.sqrt(vec1.reduce((sum, a) => sum + a * a, 0));
+  const magnitude2 = Math.sqrt(vec2.reduce((sum, a) => sum + a * a, 0));
+  
+  if (magnitude1 === 0 || magnitude2 === 0) return 0;
+  return dotProduct / (magnitude1 * magnitude2);
 }
 
-export default async function handler(req: Request): Promise<Response> {
+/**
+ * @param {Request} req
+ * @returns {Promise<Response>}
+ */
+export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -93,7 +110,21 @@ export default async function handler(req: Request): Promise<Response> {
       });
     }
 
-    const supabase = getSupabaseClient();
+    supabaseUrl = process.env.SUPABASE_URL;
+    supabaseKey = process.env.SUPABASE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(JSON.stringify({ 
+        error: 'Supabase not configured',
+        supabaseUrl: supabaseUrl ? 'set' : 'missing',
+        supabaseKey: supabaseKey ? 'set' : 'missing'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const targetProjectId = projectId || 'global';
 
     switch (action) {
@@ -130,7 +161,7 @@ export default async function handler(req: Request): Promise<Response> {
         return new Response(JSON.stringify({ 
           success: true, 
           id: document.id || `doc_${Date.now()}`,
-          message: 'Document vectorized and stored in Supabase' 
+          message: 'Document vectorized and stored' 
         }), {
           headers: { 'Content-Type': 'application/json' },
         });
@@ -154,7 +185,7 @@ export default async function handler(req: Request): Promise<Response> {
         });
 
         if (error) {
-          console.error('Supabase search error:', error);
+          console.error('Supabase RPC error:', error);
           
           const { data: allDocs, error: fetchError } = await supabase
             .from('knowledge_vectors')
@@ -165,28 +196,28 @@ export default async function handler(req: Request): Promise<Response> {
             throw new Error(`Supabase fetch error: ${fetchError.message}`);
           }
 
-          const results: VectorSearchResult[] = (allDocs || [])
-            .filter((doc: any) => doc.embedding)
-            .map((doc: any) => ({
+          const results = (allDocs || [])
+            .filter(doc => doc.embedding)
+            .map(doc => ({
               id: doc.id,
               score: cosineSimilarity(queryEmbedding, doc.embedding),
               content: doc.content,
               metadata: doc.metadata,
             }))
             .filter(result => result.score > 0.1)
-            .sort((a: VectorSearchResult, b: VectorSearchResult) => b.score - a.score)
+            .sort((a, b) => b.score - a.score)
             .slice(0, 10);
 
           return new Response(JSON.stringify({ 
             success: true, 
             results,
-            message: `Found ${results.length} relevant documents (fallback mode)`
+            message: `Found ${results.length} documents (fallback mode)`
           }), {
             headers: { 'Content-Type': 'application/json' },
           });
         }
 
-        const results: VectorSearchResult[] = (data || []).map((row: any) => ({
+        const results = (data || []).map(row => ({
           id: row.id,
           score: row.similarity,
           content: row.content,
@@ -196,7 +227,7 @@ export default async function handler(req: Request): Promise<Response> {
         return new Response(JSON.stringify({ 
           success: true, 
           results,
-          message: `Found ${results.length} relevant documents`
+          message: `Found ${results.length} documents`
         }), {
           headers: { 'Content-Type': 'application/json' },
         });
@@ -240,7 +271,7 @@ export default async function handler(req: Request): Promise<Response> {
           throw new Error(`Supabase list error: ${error.message}`);
         }
 
-        const documents = (data || []).map((doc: any) => ({
+        const documents = (data || []).map(doc => ({
           id: doc.id,
           title: doc.metadata?.title || 'Untitled',
           type: doc.metadata?.type || 'text',
@@ -274,15 +305,4 @@ export default async function handler(req: Request): Promise<Response> {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-}
-
-function cosineSimilarity(vec1: number[], vec2: number[]): number {
-  if (vec1.length !== vec2.length || vec1.length === 0) return 0;
-  
-  const dotProduct = vec1.reduce((sum, a, i) => sum + a * vec2[i], 0);
-  const magnitude1 = Math.sqrt(vec1.reduce((sum, a) => sum + a * a, 0));
-  const magnitude2 = Math.sqrt(vec2.reduce((sum, a) => sum + a * a, 0));
-  
-  if (magnitude1 === 0 || magnitude2 === 0) return 0;
-  return dotProduct / (magnitude1 * magnitude2);
 }
