@@ -8,9 +8,9 @@ const ZHIPU_BASE_URL = '/api/zhipu'
 export enum ZhipuModel {
   GLM_4_7 = 'glm-4.7',                  // 最新旗舰模型（默认）
   GLM_4_6 = 'glm-4.6',                  // 高性价比选择
-  GLM_4_5_FLASH = 'glm-4.5-flash',      // 免费模型
-  GLM_4V = 'glm-4v',                    // 视觉分析模型
-  GLM_4_PLUS = 'glm-4-plus',             // 增强版模型
+  GLM_4_5_FLASH = 'glm-4.5-flash',     // 免费模型
+  GLM_4_6V = 'GLM-4.6V',               // 视觉理解模型（大写V）
+  GLM_4_6V_FLASH = 'GLM-4.6V-Flash',  // 免费视觉模型
   GLM_4_VOICE = 'glm-4-voice',          // 语音模型
   GLM_REALTIME = 'glm-realtime-flash',   // 实时交互专用
   EMBEDDING_3 = 'embedding-3',           // 向量模型
@@ -32,7 +32,7 @@ export interface SmartRoutingConfig {
 export const DEFAULT_SMART_ROUTING: SmartRoutingConfig = {
   textChat: ZhipuModel.GLM_4_7,              // 最新旗舰模型，最佳对话体验
   codeGeneration: ZhipuModel.GLM_4_7,        // Agentic Coding 专用优化
-  imageAnalysis: ZhipuModel.GLM_4V,          // 最强视觉理解能力
+  imageAnalysis: ZhipuModel.GLM_4_6V,       // 最强视觉理解能力（大写V）
   voiceInteraction: ZhipuModel.GLM_4_VOICE,  // 专业语音模型
   embedding: ZhipuModel.EMBEDDING_3,         // 最新向量模型
   realtime: ZhipuModel.GLM_REALTIME,         // 实时交互专用
@@ -44,7 +44,7 @@ export const DEFAULT_SMART_ROUTING: SmartRoutingConfig = {
 export const COST_OPTIMIZED_ROUTING: SmartRoutingConfig = {
   textChat: ZhipuModel.GLM_4_5_FLASH,        // 免费高效
   codeGeneration: ZhipuModel.GLM_4_6,        // 高性价比编码
-  imageAnalysis: ZhipuModel.GLM_4V,           // 视觉分析
+  imageAnalysis: ZhipuModel.GLM_4_6V_FLASH, // 免费视觉分析
   voiceInteraction: ZhipuModel.GLM_4_VOICE,   // 语音专用
   embedding: ZhipuModel.EMBEDDING_3,         // 向量化
   realtime: ZhipuModel.GLM_REALTIME,         // 实时交互
@@ -120,7 +120,7 @@ export class AIService {
     // 图片分析 -> 视觉模型
     if (options?.imageUrl || options?.imageBuffer || 
         lowerPrompt.includes('图片') || lowerPrompt.includes('image')) {
-      return ZhipuModel.GLM_4V;
+      return ZhipuModel.GLM_4_6V;
     }
     
     // 语音相关 -> 语音模型
@@ -726,9 +726,9 @@ export class AIService {
     }
 
     try {
-      // 使用 glm-4v 或 glm-4-plus 视觉模型
+      // 使用 GLM-4.6V 视觉理解模型（官方文档正确名称，大写V）
       const data = await this.zhipuFetch('/chat/completions', {
-        model: 'glm-4v',  // 智谱视觉模型
+        model: 'GLM-4.6V',
         messages: [{
           role: 'user',
           content: [
@@ -739,12 +739,12 @@ export class AIService {
       });
       return data.choices[0].message.content;
     } catch (error) {
-      console.error('Image analysis failed, trying alternative model:', error);
+      console.error('Image analysis failed, trying free model:', error);
       
-      // 如果 glm-4v 失败，尝试使用 glm-4-plus
+      // 如果 GLM-4.6V 失败，尝试使用免费的 GLM-4.6V-Flash
       try {
         const data = await this.zhipuFetch('/chat/completions', {
-          model: 'glm-4-plus',
+          model: 'GLM-4.6V-Flash',
           messages: [{
             role: 'user',
             content: [
@@ -755,7 +755,7 @@ export class AIService {
         });
         return data.choices[0].message.content;
       } catch (error2) {
-        console.error('Alternative model also failed:', error2);
+        console.error('Free model also failed:', error2);
         return this.generateMockImageAnalysis(visionPrompt);
       }
     }
