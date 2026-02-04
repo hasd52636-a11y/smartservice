@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "builds": [
+"builds": [
     {
       "src": "package.json",
       "use": "@vercel/static-build",
@@ -17,6 +17,13 @@
     },
     {
       "src": "api/**/*.ts",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60
+      }
+    },
+    {
+      "src": "api/**/*.mjs",
       "use": "@vercel/node",
       "config": {
         "maxDuration": 60
