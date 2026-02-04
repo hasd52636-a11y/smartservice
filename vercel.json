@@ -30,7 +30,7 @@
     },
     {
       "src": "/api/knowledge",
-      "dest": "/api/knowledge.ts"
+      "dest": "/api/knowledge.mjs"
     },
     {
       "src": "/api/project/(.*)",
