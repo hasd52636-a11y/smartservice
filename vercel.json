@@ -23,10 +23,14 @@
       }
     }
   ],
-  "routes": [
+"routes": [
     {
       "src": "/api/chat",
       "dest": "/api/chat.ts"
+    },
+    {
+      "src": "/api/knowledge",
+      "dest": "/api/knowledge.ts"
     },
     {
       "src": "/api/project/(.*)",
