@@ -123,30 +123,7 @@ class ProjectService {
     }
   }
 
-  // 从localStorage加载商家创建的项目
-  private loadProjectsFromLocalStorage() {
-    try {
-      const saved = localStorage.getItem('smartguide_projects');
-      if (saved) {
-        const parsed = JSON.parse(saved) as ProductProject[];
-        parsed.forEach(project => {
-          // 确保项目配置完整
-          const completeProject = {
-            ...project,
-            config: {
-              provider: AIProvider.ZHIPU,
-              videoGuides: [],
-              ...project.config
-            },
-            knowledgeBase: project.knowledgeBase || []
-          };
-          this.projects.set(project.id, completeProject);
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load projects from localStorage:', error);
-    }
-  }
+
 
   // 根据projectId获取项目（用户扫码时调用）
   public async getProjectById(projectId: string): Promise<ProductProject | null> {

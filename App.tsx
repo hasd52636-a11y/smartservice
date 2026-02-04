@@ -64,35 +64,36 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
           return;
         }
         
-        // 强制初始化项目服务（确保数据加载）
+        // 不依赖传入的projects参数，直接从项目服务获取最新数据
         const allProjects = await projectService.getAllProjects();
         
         // 等待linkService完全初始化
         let retryCount = 0;
-        let projectId = null;
+        let foundProjectId = null;
         
-        while (retryCount < 10 && !projectId) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
+        while (retryCount < 10 && !foundProjectId) {
           // 尝试查找项目ID
-          projectId = linkService.getProjectIdByShortCode(shortCode);
+          foundProjectId = linkService.getProjectIdByShortCode(shortCode);
           
-          if (!projectId) {
+          if (!foundProjectId) {
             // 如果没找到，强制重新生成所有项目的链接
             for (const project of allProjects) {
               linkService.generateLinksForProject(project.id);
             }
+            
+            // 等待一小段时间让链接生成完成
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
           
           retryCount++;
         }
         
-        if (projectId) {
+        if (foundProjectId) {
           // 验证项目是否存在且可用
-          const validation = await projectService.validateProjectId(projectId);
+          const validation = await projectService.validateProjectId(foundProjectId);
           
           if (validation.valid && validation.project) {
-            setProjectId(projectId);
+            setProjectId(foundProjectId);
             setLoading(false);
           } else {
             setError(validation.error || '项目不可用');
@@ -175,6 +176,13 @@ const LinkEntryHandler: React.FC<{ projects: ProductProject[] }> = ({ projects }
   }
 
   return null;
+};
+
+// UserPreview包装组件 - 用于处理路由参数传递
+const UserPreviewWrapper: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
+  const { id } = useParams<{ id: string }>();
+  
+  return <UserPreview projects={projects} projectId={id} />;
 };
 
 // 公共欢迎页面组件 - 用户访问根路径时显示
@@ -443,7 +451,7 @@ const App: React.FC = () => {
           {/* 用户端路由（扫码进入） - 绝对安全隔离 */}
           <Route path="/view/:id" element={
             <ErrorBoundary>
-              <UserPreview projects={projects} />
+              <UserPreviewWrapper projects={projects} />
             </ErrorBoundary>
           } />
           <Route path="/video/:id" element={

@@ -1,5 +1,10 @@
 
 import { KnowledgeItem, AIProvider } from "../types";
+import { globalCache } from "../utils/cacheManager";
+import { ErrorHandler, AIError, ErrorType, offlineQueue } from "../utils/errorHandler";
+import { InputValidator } from "../utils/inputValidator";
+import { logger } from "../utils/logger";
+import { i18n } from "../utils/i18n";
 
 // 智谱AI API配置
 const ZHIPU_BASE_URL = '/api/zhipu'
@@ -146,13 +151,18 @@ export class AIService {
 
   // 智谱API请求 - 支持后端代理模式（兼容现有路径）
   private async zhipuFetch(endpoint: string, body: any, isBinary: boolean = false, retryCount: number = 0) {
+    const startTime = Date.now();
+    
     try {
       // 对于chat/completions，优先尝试新的代理路径，失败时回退到原路径
       if (endpoint === '/chat/completions') {
         try {
-          return await this.proxyFetch(body, isBinary);
+          const result = await this.proxyFetch(body, isBinary);
+          // 记录成功调用的性能指标
+          logger.recordPerformance('api-call', Date.now() - startTime, 'ms', { endpoint, success: true });
+          return result;
         } catch (proxyError) {
-          console.warn('New proxy failed, falling back to original path:', proxyError);
+          logger.warn('New proxy failed, falling back to original path', { error: proxyError }, undefined, body.projectId);
           // 继续使用原有的zhipu路径
         }
       }
@@ -160,7 +170,14 @@ export class AIService {
       // 获取API密钥
       const apiKey = this.getZhipuApiKey();
       if (!apiKey) {
+        logger.error('智谱AI API密钥未设置', { endpoint }, undefined, body.projectId);
         throw new Error('智谱AI API密钥未设置，请先配置API密钥');
+      }
+
+      // 验证API密钥格式
+      if (!this.validateApiKey(apiKey)) {
+        logger.error('智谱AI API密钥格式不正确', { endpoint }, undefined, body.projectId);
+        throw new Error('智谱AI API密钥格式不正确，请检查密钥是否有效');
       }
 
       const response = await fetch(`${ZHIPU_BASE_URL}${endpoint}`, {
@@ -190,23 +207,37 @@ export class AIService {
 
         // 检查是否需要重试
         if (this.retryConfig.retryableStatuses.includes(response.status) && retryCount < this.retryConfig.maxRetries) {
+          logger.warn(`API request failed with status ${response.status}, retrying...`, { endpoint, status: response.status, retryCount: retryCount + 1 }, undefined, body.projectId);
           await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
           return this.zhipuFetch(endpoint, body, isBinary, retryCount + 1);
         }
 
+        logger.error(`Zhipu API request failed: ${errorMessage}`, { endpoint, status: response.status, error: errorMessage }, undefined, body.projectId);
         throw new Error(`${errorMessage} (${response.status})`);
       }
 
-      return isBinary ? response.arrayBuffer() : response.json();
+      const result = isBinary ? response.arrayBuffer() : await response.json();
+      // 记录成功调用的性能指标
+      logger.recordPerformance('api-call', Date.now() - startTime, 'ms', { endpoint, success: true });
+      return result;
     } catch (error) {
-      console.error('Zhipu API request failed:', error);
+      const duration = Date.now() - startTime;
+      logger.error('Zhipu API request failed', { 
+        endpoint, 
+        duration,
+        error: error instanceof Error ? error.message : String(error),
+        retryCount 
+      }, undefined, body.projectId);
       
       // 网络错误重试
       if (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')) && retryCount < this.retryConfig.maxRetries) {
+        logger.warn(`Network error occurred, retrying...`, { endpoint, retryCount: retryCount + 1 }, undefined, body.projectId);
         await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
         return this.zhipuFetch(endpoint, body, isBinary, retryCount + 1);
       }
       
+      // 记录失败调用的性能指标
+      logger.recordPerformance('api-call', duration, 'ms', { endpoint, success: false, error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -243,10 +274,13 @@ export class AIService {
 
   // 智谱流式请求
   private async zhipuStreamFetch(endpoint: string, body: any, callback: StreamCallback, retryCount: number = 0) {
+    const startTime = Date.now();
+    
     try {
       // 获取API密钥
       const apiKey = this.getZhipuApiKey();
       if (!apiKey) {
+        logger.error('智谱AI API密钥未设置', { endpoint, method: 'stream' }, undefined, body.projectId);
         throw new Error('智谱AI API密钥未设置，请先配置API密钥');
       }
 
@@ -277,15 +311,18 @@ export class AIService {
 
         // 检查是否需要重试
         if (this.retryConfig.retryableStatuses.includes(response.status) && retryCount < this.retryConfig.maxRetries) {
+          logger.warn(`Stream API request failed with status ${response.status}, retrying...`, { endpoint, status: response.status, retryCount: retryCount + 1 }, undefined, body.projectId);
           await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
           return this.zhipuStreamFetch(endpoint, body, callback, retryCount + 1);
         }
 
+        logger.error(`Zhipu stream API request failed: ${errorMessage}`, { endpoint, status: response.status, error: errorMessage }, undefined, body.projectId);
         throw new Error(`${errorMessage} (${response.status})`);
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
+        logger.error('No response body for stream request', { endpoint }, undefined, body.projectId);
         throw new Error('No response body');
       }
 
@@ -315,30 +352,64 @@ export class AIService {
                     }
                     if (parsed.choices[0]?.finish_reason) {
                       callback('', true, parsed.choices[0].finish_reason);
+                      
+                      // 记录成功调用的性能指标（流式请求完成）
+                      logger.recordPerformance('api-call', Date.now() - startTime, 'ms', { endpoint, success: true, method: 'stream' });
                     }
                   } catch (error) {
                     // 忽略JSON解析错误，可能是不完整的数据块
-                    console.warn('Skipping malformed SSE chunk:', data.substring(0, 100));
+                    logger.warn('Skipping malformed SSE chunk', { chunk: data.substring(0, 100) }, undefined, body.projectId);
                   }
                 }
               }
             }
           }
         } catch (streamError) {
-          console.error('Stream reading error:', streamError);
+          logger.error('Stream reading error', { 
+            endpoint, 
+            error: streamError instanceof Error ? streamError.message : String(streamError),
+            duration: Date.now() - startTime
+          }, undefined, body.projectId);
+          
+          // 记录失败调用的性能指标
+          logger.recordPerformance('api-call', Date.now() - startTime, 'ms', { 
+            endpoint, 
+            success: false, 
+            method: 'stream',
+            error: streamError instanceof Error ? streamError.message : String(streamError) 
+          });
+          
           // 流式读取错误，不重试，直接通知回调
           callback('', true, 'error');
           throw streamError;
         }
       }
+      
+      // 记录成功调用的性能指标（流式请求完成）
+      logger.recordPerformance('api-call', Date.now() - startTime, 'ms', { endpoint, success: true, method: 'stream' });
     } catch (error) {
-      console.error('Zhipu API stream request failed:', error);
+      const duration = Date.now() - startTime;
+      logger.error('Zhipu API stream request failed', { 
+        endpoint, 
+        duration,
+        error: error instanceof Error ? error.message : String(error),
+        retryCount 
+      }, undefined, body.projectId);
       
       // 网络错误重试
       if (error instanceof Error && (error.message.includes('network') || error.message.includes('timeout')) && retryCount < this.retryConfig.maxRetries) {
+        logger.warn(`Network error occurred in stream request, retrying...`, { endpoint, retryCount: retryCount + 1 }, undefined, body.projectId);
         await this.delay(this.retryConfig.retryDelay * (retryCount + 1));
         return this.zhipuStreamFetch(endpoint, body, callback, retryCount + 1);
       }
+      
+      // 记录失败调用的性能指标
+      logger.recordPerformance('api-call', duration, 'ms', { 
+        endpoint, 
+        success: false, 
+        method: 'stream',
+        error: error instanceof Error ? error.message : String(error) 
+      });
       
       throw error;
     }
@@ -400,9 +471,17 @@ export class AIService {
     responseFormat?: { type: 'text' | 'json_object' };
     projectConfig?: any; // 添加项目配置参数
   }) {
+    // 验证输入参数
+    const validation = InputValidator.validateTextInput(prompt);
+    if (!validation.isValid) {
+      console.warn('Invalid prompt provided:', validation.error);
+      return `输入验证失败: ${validation.error || '无效输入'}`;
+    }
+    
     // 检查API密钥是否存在
-    if (!this.zhipuApiKey) {
-      const mockResponse = this.generateMockResponse(prompt, knowledge, options?.projectConfig);
+    const apiKey = this.getZhipuApiKey();
+    if (!apiKey || !this.validateApiKey(apiKey)) {
+      const mockResponse = this.generateMockResponse(validation.sanitized, knowledge, options?.projectConfig);
       
       if (options?.stream && options?.callback) {
         // 模拟流式输出
@@ -425,6 +504,17 @@ export class AIService {
 
     try {
       const combinedKnowledge = knowledge;
+      
+      // 创建查询缓存键（使用简化的方法生成哈希）
+      const knowledgeIdsHash = knowledge.map(k => k.id).join('_');
+      const cacheKey = `embedding_query_${prompt.substring(0, 50)}_${knowledgeIdsHash}`;
+      
+      // 尝试从缓存获取结果
+      const cachedResult = globalCache.get(cacheKey);
+      if (cachedResult) {
+        console.log('Using cached embedding result');
+        return cachedResult;
+      }
       
       // 1. 向量化用户查询
       const queryEmbedding = await this.createEmbedding(prompt, {
@@ -518,94 +608,136 @@ export class AIService {
         projectId: options?.projectConfig?.id || 'default' // 添加项目ID用于后端代理
       };
 
+      let result;
       if (options?.stream && options?.callback) {
         await this.zhipuStreamFetch('/chat/completions', requestBody, options.callback);
-        return '';
+        result = '';
       } else {
         const data = await this.zhipuFetch('/chat/completions', requestBody);
-        return data.choices[0].message.content;
+        result = data.choices[0].message.content;
       }
+      
+      // 缓存结果（只缓存非流式响应的结果）
+      if (!options?.stream) {
+        globalCache.set(cacheKey, result, 30 * 60 * 1000); // 缓存30分钟
+      }
+      
+      return result;
     } catch (error) {
       console.error('向量检索失败，使用传统关键词检索:', error);
       
-      // 如果API调用失败，回退到模拟响应
-      if (error instanceof Error && (error.message.includes('API key') || error.message.includes('401'))) {
-        const mockResponse = this.generateMockResponse(prompt, knowledge);
-        
-        if (options?.stream && options?.callback) {
-          // 模拟流式输出
-          const words = mockResponse.split('');
-          let index = 0;
-          const streamInterval = setInterval(() => {
-            if (index < words.length) {
-              options.callback!(words[index], false);
-              index++;
-            } else {
-              options.callback!('', true, 'stop');
-              clearInterval(streamInterval);
-            }
-          }, 50);
-          return '';
-        } else {
-          return mockResponse;
-        }
-      }
+      // 使用新的错误处理机制解析错误
+      const aiError = ErrorHandler.parseError(error);
+      ErrorHandler.logError(aiError, 'getSmartResponse vector search');
       
-      // 回退到传统关键词检索
-      try {
-        const combinedKnowledge = knowledge;
+      // 根据错误类型决定如何处理
+      switch (aiError.errorType) {
+        case ErrorType.AUTHENTICATION_ERROR:
+          // 认证错误，使用模拟响应
+          const mockResponse = this.generateMockResponse(prompt, knowledge, options?.projectConfig);
+          
+          if (options?.stream && options?.callback) {
+            // 模拟流式输出
+            const words = mockResponse.split('');
+            let index = 0;
+            const streamInterval = setInterval(() => {
+              if (index < words.length) {
+                options.callback!(words[index], false);
+                index++;
+              } else {
+                options.callback!('', true, 'stop');
+                clearInterval(streamInterval);
+              }
+            }, 50);
+            return '';
+          } else {
+            return mockResponse;
+          }
         
-        const relevantItems = this.retrieveRelevantKnowledge(prompt, combinedKnowledge);
-        const context = relevantItems.length > 0 
-          ? relevantItems.map((item, index) => {
-              const sourceLabel = '产品知识库';
-              return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
-            }).join('\n\n')
-          : "No direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
+        case ErrorType.NETWORK_ERROR:
+          // 网络错误，将请求加入离线队列（如果适用）
+          console.warn('Network error detected, considering offline mode');
+          // 这里可以实现将消息加入离线队列的逻辑
+        
+        case ErrorType.RATE_LIMIT_ERROR:
+          // 限流错误，使用模拟响应并告知用户
+          const rateLimitResponse = `抱歉，由于服务调用频率限制，暂时无法处理您的请求。请稍后重试。\n\n${this.generateMockResponse(prompt, knowledge, options?.projectConfig)}`;
+          
+          if (options?.stream && options?.callback) {
+            const words = rateLimitResponse.split('');
+            let index = 0;
+            const streamInterval = setInterval(() => {
+              if (index < words.length) {
+                options.callback!(words[index], false);
+                index++;
+              } else {
+                options.callback!('', true, 'stop');
+                clearInterval(streamInterval);
+              }
+            }, 50);
+            return '';
+          } else {
+            return rateLimitResponse;
+          }
+        
+        default:
+          // 对于其他错误，回退到传统关键词检索
+          try {
+            const combinedKnowledge = knowledge;
+            
+            const relevantItems = this.retrieveRelevantKnowledge(prompt, combinedKnowledge);
+            const context = relevantItems.length > 0 
+              ? relevantItems.map((item, index) => {
+                  const sourceLabel = '产品知识库';
+                  return `[${sourceLabel} ${index + 1}: ${item.title}]\n${item.content}`;
+                }).join('\n\n')
+              : "No direct match in knowledge base. When no relevant information is found, you must clearly state that you don't have specific information about the topic and suggest contacting human customer service.";
 
-        const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
+            const fullPrompt = `You are a product support AI specialized in providing accurate answers based on the provided knowledge base.\n\nIMPORTANT GUIDELINES:\n1. **Strictly use only the information provided in the context** for your answers
 2. **Prioritize product-specific knowledge** over general knowledge when both are available
 3. **Cite the source** of your information by referencing the knowledge item number and source
 4. **If no relevant information is found**, clearly state that you don't have specific information about the topic\n5. **Be concise and direct** in your responses\n6. **Maintain a professional and helpful tone**\n\nContext:\n${context}\n\nUser Question: ${prompt}`;
 
-        const optimalModel = this.getOptimalModel(prompt, options);
-        
-        // 根据模型类型构建不同的消息格式
-        let messages;
-        if (optimalModel === ZhipuModel.GLM_4_VOICE) {
-          // GLM-4-Voice 需要特殊的消息格式
-          messages = [
-            { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
-            { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
-          ];
-        } else {
-          // 普通文本模型
-          messages = [
-            { role: 'system', content: systemInstruction },
-            { role: 'user', content: fullPrompt }
-          ];
-        }
-        
-        const requestBody = {
-          model: optimalModel,
-          messages: messages,
-          temperature: options?.temperature || 0.1,
-          max_tokens: options?.maxTokens || 1024,
-          stream: options?.stream || false,
-          tools: options?.tools,
-          response_format: options?.responseFormat
-        };
+            const optimalModel = this.getOptimalModel(prompt, options);
+            
+            // 根据模型类型构建不同的消息格式
+            let messages;
+            if (optimalModel === ZhipuModel.GLM_4_VOICE) {
+              // GLM-4-Voice 需要特殊的消息格式
+              messages = [
+                { role: 'system', content: [{ type: 'text', text: systemInstruction }] },
+                { role: 'user', content: [{ type: 'text', text: fullPrompt }] }
+              ];
+            } else {
+              // 普通文本模型
+              messages = [
+                { role: 'system', content: systemInstruction },
+                { role: 'user', content: fullPrompt }
+              ];
+            }
+            
+            const requestBody = {
+              model: optimalModel,
+              messages: messages,
+              temperature: options?.temperature || 0.1,
+              max_tokens: options?.maxTokens || 1024,
+              stream: options?.stream || false,
+              tools: options?.tools,
+              response_format: options?.responseFormat
+            };
 
-        if (options?.stream && options?.callback) {
-          await this.zhipuStreamFetch('/chat/completions', requestBody, options.callback);
-          return '';
-        } else {
-          const data = await this.zhipuFetch('/chat/completions', requestBody);
-          return data.choices[0].message.content;
-        }
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
-        throw error; // 抛出原始错误
+            if (options?.stream && options?.callback) {
+              await this.zhipuStreamFetch('/chat/completions', requestBody, options.callback);
+              return '';
+            } else {
+              const data = await this.zhipuFetch('/chat/completions', requestBody);
+              return data.choices[0].message.content;
+            }
+          } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+            // 最终回退到模拟响应
+            return this.generateMockResponse(prompt, knowledge, options?.projectConfig);
+          }
       }
     }
   }
@@ -1292,28 +1424,70 @@ export class AIService {
     if (relevantItems.length > 0) {
       // 如果有相关知识，基于知识库内容生成响应
       const firstItem = relevantItems[0];
-      return `根据产品知识库，关于"${promptStr}"的信息：\n\n${firstItem.content.substring(0, 200)}${firstItem.content.length > 200 ? '...' : ''}\n\n如需更详细信息，请联系${companyName}技术支持：${supportPhone}`;
+      return `根据产品知识库，关于"${promptStr}"的信息：
+
+${firstItem.content.substring(0, 200)}${firstItem.content.length > 200 ? '...' : ''}
+
+如需更详细信息，请联系${companyName}技术支持：${supportPhone}`;
     }
     
     // 常见问题的模拟响应
     if (lowerPrompt.includes('安装') || lowerPrompt.includes('install')) {
-      return `关于产品安装，建议您：\n\n1. 仔细阅读产品说明书\n2. 确保安装环境符合要求\n3. 按照步骤逐一操作\n4. 如遇问题请拍照发送给我分析\n\n如需专业技术支持，请联系：${supportPhone}`;
+      return `关于产品安装，建议您：
+
+1. 仔细阅读产品说明书
+2. 确保安装环境符合要求
+3. 按照步骤逐一操作
+4. 如遇问题请拍照发送给我分析
+
+如需专业技术支持，请联系：${supportPhone}`;
     }
     
     if (lowerPrompt.includes('故障') || lowerPrompt.includes('问题') || lowerPrompt.includes('error')) {
-      return `遇到产品故障时，请：\n\n1. 描述具体故障现象\n2. 提供产品型号信息\n3. 上传故障现场照片\n4. 说明使用环境和操作步骤\n\n我会基于这些信息为您提供解决方案。如需人工客服，请拨打：${supportPhone}`;
+      return `遇到产品故障时，请：
+
+1. 描述具体故障现象
+2. 提供产品型号信息
+3. 上传故障现场照片
+4. 说明使用环境和操作步骤
+
+我会基于这些信息为您提供解决方案。如需人工客服，请拨打：${supportPhone}`;
     }
     
     if (lowerPrompt.includes('使用') || lowerPrompt.includes('操作') || lowerPrompt.includes('how')) {
-      return `关于产品使用方法：\n\n1. 请先查看产品说明书\n2. 确保正确连接和设置\n3. 按照操作指南进行\n4. 注意安全事项\n\n如有具体操作问题，请详细描述或上传图片，我会为您提供指导。技术支持热线：${supportPhone}`;
+      return `关于产品使用方法：
+
+1. 请先查看产品说明书
+2. 确保正确连接和设置
+3. 按照操作指南进行
+4. 注意安全事项
+
+如有具体操作问题，请详细描述或上传图片，我会为您提供指导。技术支持热线：${supportPhone}`;
     }
     
     if (lowerPrompt.includes('维护') || lowerPrompt.includes('保养') || lowerPrompt.includes('maintenance')) {
-      return `产品维护保养建议：\n\n1. 定期清洁产品表面\n2. 检查连接部件是否松动\n3. 避免在恶劣环境中使用\n4. 按照保养周期进行维护\n\n具体维护方法请参考说明书，或联系技术支持：${supportPhone}`;
+      return `产品维护保养建议：
+
+1. 定期清洁产品表面
+2. 检查连接部件是否松动
+3. 避免在恶劣环境中使用
+4. 按照保养周期进行维护
+
+具体维护方法请参考说明书，或联系技术支持：${supportPhone}`;
     }
     
     // 默认响应
-    return `您好！我是智能售后客服助手。\n\n关于您的问题"${promptStr}"，我需要更多信息来为您提供准确的解答。请您：\n\n1. 详细描述问题情况\n2. 提供产品型号\n3. 上传相关图片\n\n这样我能更好地为您服务。如需人工客服，请拨打：${supportPhone}\n\n官网：${supportWebsite}`;
+    return `您好！我是智能售后客服助手。
+
+关于您的问题"${promptStr}"，我需要更多信息来为您提供准确的解答。请您：
+
+1. 详细描述问题情况
+2. 提供产品型号
+3. 上传相关图片
+
+这样我能更好地为您服务。如需人工客服，请拨打：${supportPhone}
+
+官网：${supportWebsite}`;
   }
 
   // 模拟图片分析（当没有API密钥时使用）
@@ -1322,7 +1496,20 @@ export class AIService {
     const supportWebsite = projectConfig?.supportWebsite || 'www.aivirtualservice.com';
     const companyName = projectConfig?.companyName || '中恒创世';
     
-    return `图片分析功能需要AI服务支持。\n\n我看到您上传了图片，但目前AI视觉分析服务需要配置。\n\n请您：\n1. 详细描述图片中的问题\n2. 说明产品型号和使用情况\n3. 联系技术支持获得专业分析\n\n${companyName}技术支持：\n📞 ${supportPhone}\n🌐 ${supportWebsite}\n\n我们的技术专家会为您提供详细的图片分析和解决方案。`;
+    return `图片分析功能需要AI服务支持。
+
+我看到您上传了图片，但目前AI视觉分析服务需要配置。
+
+请您：
+1. 详细描述图片中的问题
+2. 说明产品型号和使用情况
+3. 联系技术支持获得专业分析
+
+${companyName}技术支持：
+📞 ${supportPhone}
+🌐 ${supportWebsite}
+
+我们的技术专家会为您提供详细的图片分析和解决方案。`;
   }
 
   // 模拟语音识别（当没有API密钥时使用）
@@ -1384,6 +1571,12 @@ export class AIService {
 
   // 设置智谱API密钥
   setZhipuApiKey(apiKey: string) {
+    // 验证API密钥格式
+    if (!this.validateApiKey(apiKey)) {
+      console.warn('Invalid API key format provided');
+      return;
+    }
+    
     this.zhipuApiKey = apiKey;
     // 同时保存到localStorage，以便下次使用
     localStorage.setItem('zhipuApiKey', apiKey);
@@ -1452,6 +1645,19 @@ export class AIService {
     }
     
     return '';
+  }
+
+  // 验证API密钥格式
+  validateApiKey(apiKey: string): boolean {
+    // 检查API密钥是否为空或未定义
+    if (!apiKey || apiKey.trim() === '') {
+      return false;
+    }
+
+    // 智谱AI API密钥通常以特定前缀开头，长度约为32-64个字符
+    // 这里使用较宽松的验证规则，可以根据实际API密钥格式进行调整
+    const apiKeyRegex = /^[a-zA-Z0-9_-]{32,64}$/;
+    return apiKeyRegex.test(apiKey);
   }
 }
 

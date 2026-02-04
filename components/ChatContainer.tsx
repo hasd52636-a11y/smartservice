@@ -4,6 +4,7 @@ import { Send, Image as ImageIcon, Loader2, ChevronLeft, Mic, Camera, Volume2 } 
 import { useChat } from '../hooks/useChat';
 import { mapUICustomizationToCSSVariables } from '../utils/cssVariables';
 import { aiService } from '../services/aiService';
+import { mobileOptimizer } from '../utils/mobileOptimizer';
 
 interface Props {
   project: ProductProject;
@@ -12,13 +13,15 @@ interface Props {
 
 const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
   // 使用自定义 hook
-  const { messages, isTyping, streamingMessage, sendMessage, scrollRef, messagesEndRef, scrollToBottom } = useChat({ project });
+  const { messages, isTyping, streamingMessage, sendMessage, loadMoreMessages, isLoadingMore, hasMoreMessages, processOfflineMessages, scrollRef, messagesEndRef, scrollToBottom } = useChat({ project });
   
   // 状态管理
   const [input, setInput] = useState('');
   const [viewportHeight, setViewportHeight] = useState('100dvh');
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   // Refs
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -199,10 +202,88 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
     const textarea = e.target;
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    
+    // 根据输入内容显示/隐藏建议
+    if (e.target.value.trim() === '') {
+      setShowSuggestions(true);
+      generateSuggestions();
+    } else {
+      setShowSuggestions(false);
+    }
   };
+
+  // 生成智能建议
+  const generateSuggestions = () => {
+    const commonQuestions = [
+      "如何安装这个产品？",
+      "产品出现故障怎么办？", 
+      "如何进行日常维护？",
+      "保修政策是什么？",
+      "如何联系售后服务？"
+    ];
+    
+    // 根据项目类型生成相关建议
+    if (project.config.productType) {
+      if (project.config.productType.includes('电子')) {
+        commonQuestions.unshift("如何重置设备？", "设备无法开机怎么办？");
+      } else if (project.config.productType.includes('机械')) {
+        commonQuestions.unshift("如何更换零件？", "设备异响怎么处理？");
+      }
+    }
+    
+    setSuggestions(commonQuestions.slice(0, 4)); // 显示前4个建议
+  };
+
+  // 选择建议
+  const selectSuggestion = (suggestion: string) => {
+    setInput(suggestion);
+    inputRef.current?.focus();
+    setShowSuggestions(false);
+  };
+
+  // 初始化手势支持
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) {
+      mobileOptimizer.initGestureListener(container, {
+        onSwipeRight: () => {
+          // 在对话列表上向右滑动可能表示返回操作
+          if (onBack) {
+            onBack();
+          }
+        },
+        onSwipeLeft: () => {
+          // 向左滑动可能表示查看更多选项
+          console.log('Swiped left - show more options');
+        },
+        onSwipeUp: () => {
+          // 向上滑动通常是滚动浏览消息
+          console.log('Swiped up - scroll up');
+        },
+        onSwipeDown: () => {
+          // 向下滑动通常是滚动到最新消息
+          scrollToBottom();
+        },
+        onTap: () => {
+          // 单击可能用于聚焦输入框
+          inputRef.current?.focus();
+        },
+        onDoubleTap: () => {
+          // 双击可能用于快速滚动到最新消息
+          scrollToBottom();
+        }
+      });
+    }
+  }, [onBack, scrollToBottom]);
+
+  // 在组件挂载时生成建议
+  useEffect(() => {
+    generateSuggestions();
+  }, [project]);
 
   return (
     <div 
+      ref={scrollRef}
       className="flex flex-col w-full overflow-hidden transition-all duration-300"
       style={{ 
         ...themeStyles, 
@@ -220,7 +301,7 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
             onClick={onBack} 
             className="p-2 -ml-2 text-slate-600 hover:text-slate-800 transition-colors"
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft size={28} className="sm:size-6" />
           </button>
         )}
         <div className="flex-1 text-center">
@@ -238,6 +319,19 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
         className="flex-1 overflow-y-auto px-4 py-6 space-y-6 scroll-smooth"
         onScroll={handleScroll}
       >
+        {/* 加载更多按钮 */}
+        {hasMoreMessages && (
+          <div className="flex justify-center my-4">
+            <button
+              onClick={loadMoreMessages}
+              disabled={isLoadingMore}
+              className="px-4 py-2 bg-[var(--button-primary)] text-[var(--button-text)] rounded-full text-sm disabled:opacity-50 transition-opacity"
+            >
+              {isLoadingMore ? '加载中...' : '加载更多消息'}
+            </button>
+          </div>
+        )}
+
         {messages.map((msg) => (
           <div 
             key={msg.id} 
@@ -247,7 +341,7 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
               msg.role === 'user' 
                 ? 'bg-[var(--user-message-bg)] text-[var(--user-message-text)] rounded-l-[var(--message-border-radius)] rounded-tr-[var(--message-border-radius)]' 
                 : 'bg-[var(--ai-message-bg)] text-[var(--ai-message-text)] rounded-r-[var(--message-border-radius)] rounded-tl-[var(--message-border-radius)] border border-slate-100'
-            } px-4 py-3 shadow-sm`}>
+            } px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm`}>
               {msg.image && (
                 <img 
                   src={msg.image} 
@@ -265,7 +359,7 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
                     onClick={() => playTTS(msg.content)}
                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-[var(--primary-color)] transition-colors"
                   >
-                    <Volume2 size={12} />
+                    <Volume2 size={14} className="sm:size-3" />
                     播放
                   </button>
                 </div>
@@ -288,13 +382,14 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
 
         {/* 加载指示器 */}
         {isTyping && !streamingMessage && (
-          <div className="flex justify-start">
+          <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="bg-[var(--ai-message-bg)] border border-slate-100 rounded-r-[var(--message-border-radius)] rounded-tl-[var(--message-border-radius)] px-4 py-3 shadow-sm">
               <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-[var(--primary-color)] rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-[var(--primary-color)] rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                <div className="w-2 h-2 bg-[var(--primary-color)] rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                <div className="w-2.5 h-2.5 sm:w-2 sm:h-2 bg-[var(--primary-color)] rounded-full animate-bounce"></div>
+                <div className="w-2.5 h-2.5 sm:w-2 sm:h-2 bg-[var(--primary-color)] rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                <div className="w-2.5 h-2.5 sm:w-2 sm:h-2 bg-[var(--primary-color)] rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
               </div>
+              <p className="text-xs text-slate-500 mt-1">AI正在思考...</p>
             </div>
           </div>
         )}
@@ -311,19 +406,19 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
             onMouseUp={stopVoiceRecording}
             onTouchStart={startVoiceRecording}
             onTouchEnd={stopVoiceRecording}
-            className={`p-2 transition-colors ${
+            className={`p-3 sm:p-2 transition-colors ${
               isVoiceRecording 
                 ? 'text-red-500 bg-red-50' 
                 : 'text-slate-400 hover:text-[var(--primary-color)]'
             }`}
           >
-            <Mic size={20} />
+            <Mic size={24} className="sm:size-5" />
           </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 text-slate-400 hover:text-[var(--primary-color)] transition-colors"
+            className="p-3 sm:p-2 text-slate-400 hover:text-[var(--primary-color)] transition-colors"
           >
-            <ImageIcon size={20} />
+            <ImageIcon size={24} className="sm:size-5" />
           </button>
 
           {/* 输入框 */}
@@ -339,19 +434,37 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
               }
             }}
             placeholder="输入您的问题..."
-            className="flex-1 py-2 bg-transparent border-none focus:ring-0 text-sm text-[var(--input-text)] max-h-[120px] resize-none overflow-y-auto placeholder-slate-400"
-            style={{ minHeight: '40px' }}
+            className="flex-1 py-3 sm:py-2 bg-transparent border-none focus:ring-0 text-base sm:text-sm text-[var(--input-text)] max-h-[120px] resize-none overflow-y-auto placeholder-slate-400"
+            style={{ minHeight: '44px' }}
           />
 
           {/* 发送按钮 */}
           <button
             onClick={() => handleSend()}
             disabled={!input.trim() || isTyping}
-            className="p-2 bg-[var(--button-primary)] text-[var(--button-text)] rounded-xl disabled:opacity-30 transition-all active:scale-95 disabled:cursor-not-allowed"
+            className="p-3 sm:p-2 bg-[var(--button-primary)] text-[var(--button-text)] rounded-xl disabled:opacity-30 transition-all active:scale-95 disabled:cursor-not-allowed"
           >
-            <Send size={18} />
+            <Send size={20} className="sm:size-4.5" />
           </button>
         </div>
+
+        {/* 智能建议 */}
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-slate-500 font-medium">快速提问：</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => selectSuggestion(suggestion)}
+                  className="px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-full text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors min-h-[32px]"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 底部信息 */}
         <div className="text-[10px] text-center text-slate-400 mt-2 tracking-tight">

@@ -62,10 +62,12 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   const cleanupVideoChat = () => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
     }
     
     if (videoStreamRef.current) {
       videoStreamRef.current.getTracks().forEach(track => track.stop());
+      videoStreamRef.current = null;
     }
     
     aiService.disconnectFromRealtime();
@@ -112,7 +114,15 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
         
         // 初始化messages状态 - 使用项目配置的欢迎语或默认欢迎语
         const welcomeMessage = validatedProject.config.welcomeMessage || 
-          `您好！我是 ${validatedProject.name} 的智能售后客服助手 🤖\n\n我可以帮您解决：\n• 产品使用问题\n• 安装指导\n• 故障排查\n• 维护保养\n\n请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`;
+          `您好！我是 ${validatedProject.name} 的智能售后客服助手 🤖
+
+我可以帮您解决：
+• 产品使用问题
+• 安装指导
+• 故障排查
+• 维护保养
+
+请描述您遇到的问题，或上传相关图片，我会基于产品知识库为您提供专业解答。`;
         setMessages([
           { 
             role: 'assistant', 
@@ -917,7 +927,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
   };
 
   return (
-    <div className="flex flex-col h-screen w-full max-w-lg mx-auto bg-[#12151b] shadow-2xl relative overflow-hidden font-sans border-x border-white/10">
+    <div className="flex flex-col h-screen w-full max-w-full sm:max-w-lg mx-auto bg-[#12151b] shadow-2xl relative overflow-hidden font-sans">
       {/* Video chat interface */}
       {isVideoChatActive && (
         <div className="absolute inset-0 z-50 bg-[#0a0c10] flex flex-col">
@@ -929,7 +939,7 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                   <Sparkles size={24} />
                 </div>
                 <div>
-                  <h1 className="font-black text-lg">{project.name} - 视频客服</h1>
+                  <h1 className="font-black text-base sm:text-lg truncate max-w-[70%]">{project.name} - 视频客服</h1>
                   <div className="flex items-center gap-4 mt-2">
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`}></span>
@@ -943,8 +953,8 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                   </div>
                 </div>
               </div>
-              <button onClick={toggleVideoChat} className="p-3 bg-white/5 border border-white/10 rounded-xl text-white">
-                <X size={20} />
+              <button onClick={toggleVideoChat} className="p-4 sm:p-3 bg-white/5 border border-white/10 rounded-xl text-white">
+                <X size={24} className="sm:size-5" />
               </button>
             </div>
           </header>
@@ -997,33 +1007,33 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                 </>
               ) : (
                 <div className="text-center">
-                  <div className="w-24 h-24 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center">
-                    <Video size={48} className="text-violet-400" />
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center">
+                    <Video size={40} className="sm:size-12 text-violet-400" />
                   </div>
-                  <p className="text-white text-lg font-medium">正在初始化视频...</p>
+                  <p className="text-white text-base sm:text-lg font-medium">正在初始化视频...</p>
                 </div>
               )}
             </div>
             
             {/* Bottom control bar */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-black/80 to-transparent">
               <div className="flex items-center justify-between">
                 {/* Video controls */}
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={toggleVideo} 
-                    className={`p-3 rounded-full ${isVideoOn ? 'bg-white/10 text-white' : 'bg-red-500/20 text-red-400'}`}
+                    className={`p-4 sm:p-3 rounded-full ${isVideoOn ? 'bg-white/10 text-white' : 'bg-red-500/20 text-red-400'}`}
                   >
-                    <Video size={20} />
+                    <Video size={24} className="sm:size-5" />
                   </button>
                   <button 
                     onClick={toggleAudio} 
-                    className={`p-3 rounded-full ${isAudioOn ? 'bg-white/10 text-white' : 'bg-red-500/20 text-red-400'}`}
+                    className={`p-4 sm:p-3 rounded-full ${isAudioOn ? 'bg-white/10 text-white' : 'bg-red-500/20 text-red-400'}`}
                   >
-                    <Mic size={20} />
+                    <Mic size={24} className="sm:size-5" />
                   </button>
-                  <button className="p-3 bg-white/10 rounded-full text-white">
-                    <Camera size={20} />
+                  <button className="p-4 sm:p-3 bg-white/10 rounded-full text-white">
+                    <Camera size={24} className="sm:size-5" />
                   </button>
                 </div>
                 
@@ -1031,37 +1041,37 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={() => addAnnotation('arrow')} 
-                    className="p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
+                    className="p-3 sm:p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
                   >
-                    <ArrowRight size={16} />
+                    <ArrowRight size={20} className="sm:size-4" />
                   </button>
                   <button 
                     onClick={() => addAnnotation('circle')} 
-                    className="p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
+                    className="p-3 sm:p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
                   >
-                    <Circle size={16} />
+                    <Circle size={20} className="sm:size-4" />
                   </button>
                   <button 
                     onClick={() => addAnnotation('text', '文本标注')} 
-                    className="p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
+                    className="p-3 sm:p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
                   >
-                    <Pencil size={16} />
+                    <Pencil size={20} className="sm:size-4" />
                   </button>
                   <button 
                     onClick={() => addAnnotation('highlight')} 
-                    className="p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
+                    className="p-3 sm:p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
                   >
-                    <Highlighter size={16} />
+                    <Highlighter size={20} className="sm:size-4" />
                   </button>
                 </div>
                 
                 {/* More controls */}
                 <div className="flex items-center gap-3">
-                  <button className="p-3 bg-white/10 rounded-full text-white">
-                    <Volume2 size={20} />
+                  <button className="p-4 sm:p-3 bg-white/10 rounded-full text-white">
+                    <Volume2 size={24} className="sm:size-5" />
                   </button>
-                  <button className="p-3 purple-gradient-btn rounded-full text-white">
-                    <Video size={20} />
+                  <button className="p-4 sm:p-3 purple-gradient-btn rounded-full text-white">
+                    <Video size={24} className="sm:size-5" />
                   </button>
                 </div>
               </div>
@@ -1069,18 +1079,18 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           </div>
 
           {/* Virtual human and chat area */}
-          <div className="w-full h-64 bg-gradient-to-b from-[#1a1d29] to-[#0f1218] flex flex-col">
+          <div className="w-full h-52 sm:h-64 bg-gradient-to-b from-[#1a1d29] to-[#0f1218] flex flex-col">
             {/* Virtual human area */}
-            <div className="h-48 flex items-center justify-center relative overflow-hidden">
+            <div className="h-40 sm:h-48 flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 opacity-20">
                 <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-violet-500 via-transparent to-transparent"></div>
               </div>
               <div className="relative z-10 text-center">
-                <div className="w-20 h-20 mx-auto mb-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <Sparkles size={40} className="text-white" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
+                  <Sparkles size={32} className="sm:size-10 text-white" />
                 </div>
                 <h3 className="text-white font-bold text-sm">智能助手</h3>
-                <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">
+                <p className="text-[9px] sm:text-[10px] text-emerald-400 font-black uppercase tracking-widest">
                   {avatarState.expression === 'neutral' ? '就绪' : '对话中'}
                 </p>
               </div>
@@ -1095,10 +1105,10 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                     placeholder="问我关于此产品的问题..."
-                    className="w-full bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="w-full bg-white/5 border border-white/10 px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl text-base sm:text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20"
                   />
-                  <button onClick={() => handleSend()} className="absolute right-2 top-1.5 p-2 purple-gradient-btn text-white rounded-lg">
-                    <Send size={16} />
+                  <button onClick={() => handleSend()} className="absolute right-2 top-1.5 p-3 sm:p-2 purple-gradient-btn text-white rounded-lg">
+                    <Send size={20} className="sm:size-4" />
                   </button>
                 </div>
               </div>
@@ -1117,9 +1127,9 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                   <Sparkles size={24} />
                 </div>
                 <div>
-                  <h1 className="font-black text-lg">{project.name}</h1>
-                  <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                  <h1 className="font-black text-base sm:text-lg truncate max-w-[70%]">{project.name}</h1>
+                  <p className="text-[9px] sm:text-[10px] text-emerald-400 font-black uppercase tracking-widest flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-400 rounded-full animate-pulse"></span>
                     Expert Mode 专家模式
                   </p>
                 </div>
@@ -1137,9 +1147,9 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                     <button 
                       key={v.id}
                       onClick={() => setActiveVideo(v.url)}
-                      className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-300 whitespace-nowrap"
+                      className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-300 whitespace-nowrap min-w-max"
                     >
-                      <PlayCircle size={14} className="text-violet-500" /> {v.title}
+                      <PlayCircle size={14} className="sm:size-3.5 text-violet-500" /> {v.title}
                     </button>
                   ))
                 }
@@ -1149,14 +1159,14 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
 
           {activeVideo && (
             <div className="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-6">
-              <button onClick={() => setActiveVideo(null)} className="absolute top-8 right-8 text-white p-3 bg-white/10 rounded-full"><X size={28}/></button>
-              <video src={activeVideo} controls autoPlay className="w-full rounded-[2rem] shadow-2xl border border-white/10" />
+              <button onClick={() => setActiveVideo(null)} className="absolute top-4 right-4 sm:top-8 sm:right-8 text-white p-3 bg-white/10 rounded-full"><X size={24} className="sm:size-7" /></button>
+              <video src={activeVideo} controls autoPlay className="w-full max-w-full h-auto rounded-2xl sm:rounded-[2rem] shadow-2xl border border-white/10" />
             </div>
           )}
 
           {/* OCR 消息提示 */}
           {ocrMessage.text && (
-            <div className={`mx-6 mt-4 p-3 rounded-lg flex items-center gap-2 ${
+            <div className={`mx-4 sm:mx-6 mt-4 p-3 rounded-lg flex items-center gap-2 ${
               ocrMessage.type === 'success' ? 'bg-green-900/30 text-green-400' :
               ocrMessage.type === 'error' ? 'bg-red-900/30 text-red-400' :
               'bg-blue-900/30 text-blue-400'
@@ -1170,48 +1180,48 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
           
           {/* OCR 结果显示 */}
           {ocrImage && (
-            <div className="mx-6 mb-4 p-4 bg-white/5 rounded-2xl border border-white/10">
+            <div className="mx-4 sm:mx-6 my-4 p-3 sm:p-4 bg-white/5 rounded-xl sm:rounded-2xl border border-white/10">
               <div className="flex justify-between items-start mb-3">
                 <h4 className="text-sm font-semibold text-white flex items-center gap-1">
-                  <ImageIcon size={14} />
+                  <ImageIcon size={16} className="sm:size-3.5" />
                   OCR 识别结果
                 </h4>
                 <button
                   onClick={clearOcrResults}
-                  className="text-xs text-white/50 hover:text-white transition-colors"
+                  className="text-sm text-white/50 hover:text-white transition-colors p-1"
                 >
-                  <X size={14} />
+                  <X size={16} className="sm:size-3.5" />
                 </button>
               </div>
               <div className="mb-3">
                 <img
                   src={ocrImage}
                   alt="OCR Image"
-                  className="w-full h-32 object-contain bg-white/5 rounded-xl"
+                  className="w-full max-h-32 object-contain bg-white/5 rounded-xl"
                 />
               </div>
               <div>
-                <p className="text-xs text-white/80 whitespace-pre-line">
+                <p className="text-xs sm:text-sm text-white/80 whitespace-pre-line">
                   {ocrResult || '识别中...'}
                 </p>
               </div>
             </div>
           )}
           
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2`}>
                 <div className={`max-w-[85%] ${m.role === 'user' ? 'order-1' : 'order-2'}`}>
-                  <div className={`p-5 rounded-[2rem] shadow-xl text-sm leading-relaxed ${
-                    m.role === 'user' ? 'bg-violet-600 text-white rounded-tr-none' : 'bg-white/5 text-slate-100 rounded-tl-none border border-white/5'
+                  <div className={`p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl text-base sm:text-sm leading-relaxed ${
+                    m.role === 'user' ? 'bg-violet-600 text-white rounded-br-none' : 'bg-white/5 text-slate-100 rounded-bl-none border border-white/5'
                   }`}>
                     {m.image && <img src={m.image} className="rounded-2xl mb-4" />}
                     <p>{m.text}</p>
                   </div>
                   {m.role === 'assistant' && (
                     <div className="flex gap-4 mt-3 pl-1">
-                      <button onClick={() => playTTS(m.text)} className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-violet-400">
-                        <Volume2 size={12}/> Audio 播放语音
+                      <button onClick={() => playTTS(m.text)} className="flex items-center gap-2 text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-violet-400">
+                        <Volume2 size={14} className="sm:size-3" /> Audio 播放语音
                       </button>
                     </div>
                   )}
@@ -1232,15 +1242,15 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             
             {isTyping && !streamingMessage && (
               <div className="flex gap-2 p-4 bg-white/5 w-fit rounded-2xl rounded-tl-none">
-                <div className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce"></div>
-                <div className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                <div className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 bg-violet-500 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 bg-violet-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                <div className="w-2 h-2 sm:w-1.5 sm:h-1.5 bg-violet-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
               </div>
             )}
           </div>
 
           {/* 手机端优化：输入框单独一行 */}
-          <div className="p-4 bg-[#0f1218]/80 backdrop-blur-3xl border-t border-white/5">
+          <div className="p-3 sm:p-4 bg-[#0f1218]/80 backdrop-blur-3xl border-t border-white/5">
             <input
               ref={ocrFileInputRef}
               type="file"
@@ -1250,25 +1260,25 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
             />
             
             {/* 功能按钮区 */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="relative group">
                   <button 
                     onClick={() => fileInputRef.current?.click()} 
-                    className="p-3 bg-white/5 border border-white/10 rounded-xl text-violet-400"
+                    className="p-4 sm:p-3 bg-white/5 border border-white/10 rounded-xl text-violet-400"
                   >
-                    <Camera size={20} />
+                    <Camera size={24} className="sm:size-5" />
                   </button>
                   <div className="absolute -bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl p-2 text-[10px] font-black text-white opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap z-50">
                     上传图片
                   </div>
                 </div>
-                <button onClick={toggleVoiceListening} className={`p-3 rounded-xl border ${isVoiceActive ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-white/5 border-white/10 text-violet-400'}`}>
-                  <Mic size={20} />
+                <button onClick={toggleVoiceListening} className={`p-4 sm:p-3 rounded-xl border ${isVoiceActive ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-white/5 border-white/10 text-violet-400'}`}>
+                  <Mic size={24} className="sm:size-5" />
                 </button>
                 {project.config.videoChatEnabled && (
-                  <button onClick={toggleVideoChat} className="p-3 bg-white/5 border border-white/10 rounded-xl text-violet-400">
-                    <Video size={20} />
+                  <button onClick={toggleVideoChat} className="p-4 sm:p-3 bg-white/5 border border-white/10 rounded-xl text-violet-400">
+                    <Video size={24} className="sm:size-5" />
                   </button>
                 )}
 
@@ -1282,10 +1292,10 @@ const UserPreview: React.FC<{ projects?: ProductProject[]; projectId?: string }>
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                 placeholder="问我关于此产品的问题..."
-                className="w-full bg-white/5 border border-white/10 px-5 py-4 rounded-xl text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20 pr-16"
+                className="w-full bg-white/5 border border-white/10 px-4 py-3 sm:px-5 sm:py-4 rounded-xl text-base sm:text-sm text-white outline-none focus:ring-2 focus:ring-violet-500/20 pr-16"
               />
-              <button onClick={() => handleSend()} className="absolute right-2 top-2 p-2 purple-gradient-btn text-white rounded-lg">
-                <Send size={18} />
+              <button onClick={() => handleSend()} className="absolute right-2.5 top-2.5 p-3 sm:p-2 purple-gradient-btn text-white rounded-lg">
+                <Send size={20} className="sm:size-5" />
               </button>
             </div>
             
