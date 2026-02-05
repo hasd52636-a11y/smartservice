@@ -1,16 +1,32 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+
+// 检查是否在 Node.js 环境中
+const isNodeEnv = typeof process !== 'undefined' && process.env;
+
+// 仅在 Node.js 环境中导入文件系统模块
+let fs, path, os;
+if (isNodeEnv) {
+  fs = require('fs');
+  path = require('path');
+  os = require('os');
+}
 
 // 获取API密钥
 function getApiKey() {
+  if (!isNodeEnv) {
+    return '';
+  }
   return process.env.ZHIPU_API_KEY || process.env.API_KEY || '';
 }
 
 module.exports = async (req, res) => {
   try {
+    // 检查是否在 Node.js 环境中
+    if (!isNodeEnv) {
+      return res.status(500).json({ error: 'OCR service requires Node.js environment' });
+    }
+
     const apiKey = getApiKey();
     if (!apiKey) {
       return res.status(401).json({ error: 'No API key provided' });

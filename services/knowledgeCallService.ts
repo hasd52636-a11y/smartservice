@@ -153,9 +153,22 @@ export class KnowledgeCallService {
     if (records.length === 0) {
       return 0;
     }
-    
+
     const totalTime = records.reduce((sum, record) => sum + record.responseTime, 0);
     return totalTime / records.length;
+  }
+
+  exportData(): string {
+    const records = this.getCalls();
+    return JSON.stringify({
+      exportDate: new Date().toISOString(),
+      totalRecords: records.length,
+      records: records
+    }, null, 2);
+  }
+
+  clearAll(): void {
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify([]));
   }
 }
 

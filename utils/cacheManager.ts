@@ -7,6 +7,27 @@ export interface CacheEntry<T = any> {
 
 export class CacheManager {
   private cache: Map<string, CacheEntry> = new Map();
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    this.startCleanupTimer();
+  }
+
+  private startCleanupTimer(): void {
+    if (typeof window !== 'undefined') {
+      this.cleanupTimer = setInterval(() => {
+        this.cleanup();
+      }, 5 * 60 * 1000);
+    }
+  }
+
+  public destroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+    this.clear();
+  }
 
   /**
    * 设置缓存项

@@ -41,15 +41,26 @@ export class Logger {
   private maxLogs: number = 1000;
   private maxMetrics: number = 1000;
   private maxConversations: number = 100;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    // 从localStorage加载已有日志
     this.loadFromStorage();
-    
-    // 定期清理旧日志
-    setInterval(() => {
-      this.cleanupOldEntries();
-    }, 300000); // 每5分钟清理一次
+    this.startCleanupTimer();
+  }
+
+  private startCleanupTimer(): void {
+    if (typeof window !== 'undefined') {
+      this.cleanupTimer = setInterval(() => {
+        this.cleanupOldEntries();
+      }, 300000);
+    }
+  }
+
+  public destroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
   }
 
   /**

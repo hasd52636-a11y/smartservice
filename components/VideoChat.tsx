@@ -103,7 +103,43 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
       
     } catch (error) {
       console.error('Failed to initialize video chat:', error);
-      alert('无法访问摄像头或麦克风，请检查权限设置。');
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        setConnectionStatus('permission_denied');
+        alert('摄像头或麦克风权限被拒绝，请在浏览器设置中允许权限后重试。\n\n步骤：\n1. 点击浏览器地址栏左侧的锁图标\n2. 在权限设置中允许摄像头和麦克风\n3. 刷新页面后重试');
+      } else if (error instanceof Error && error.name === 'NotFoundError') {
+        setConnectionStatus('no_device');
+        alert('未检测到摄像头或麦克风设备，请确保设备已连接并正常工作。');
+      } else {
+        setConnectionStatus('error');
+        alert('无法初始化视频聊天：' + (error instanceof Error ? error.message : '未知错误') + '\n\n请检查：\n1. 浏览器权限设置\n2. 设备连接状态\n3. 网络连接\n4. API密钥配置');
+      }
+    }
+  };
+  
+  // 手动请求权限
+  const requestPermissions = async () => {
+    try {
+      setConnectionStatus('requesting_permission');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+      
+      setVideoStream(stream);
+      setAudioStream(stream);
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
+      setConnectionStatus('connecting');
+      await connectToRealtime();
+      startRenderLoop();
+    } catch (error) {
+      console.error('Permission request failed:', error);
+      setConnectionStatus('permission_denied');
+      alert('权限请求失败，请在浏览器设置中手动允许权限。');
     }
   };
   
@@ -600,6 +636,14 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
                 <button className="p-3 bg-white/10 rounded-full text-white">
                   <Camera size={20} />
                 </button>
+                {connectionStatus === 'permission_denied' && (
+                  <button 
+                    onClick={requestPermissions} 
+                    className="p-3 bg-blue-600 rounded-full text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Mic size={20} />
+                  </button>
+                )}
               </div>
               
               {/* 标注工具 */}
@@ -641,6 +685,35 @@ const VideoChat: React.FC<{ projects: ProductProject[] }> = ({ projects }) => {
               </div>
             </div>
           </div>
+          
+          {/* 权限请求提示 */}
+          {connectionStatus === 'permission_denied' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+              <div className="text-center p-8 bg-white/10 backdrop-blur-sm rounded-xl max-w-md">
+                <div className="w-20 h-20 mx-auto mb-4 bg-red-500/20 rounded-full flex items-center justify-center">
+                  <Mic size={40} className="text-red-400" />
+                </div>
+                <h3 className="text-white text-xl font-bold mb-2">权限被拒绝</h3>
+                <p className="text-white/80 text-sm mb-6">
+                  摄像头或麦克风权限被拒绝，请允许权限以使用视频和语音功能。
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={requestPermissions} 
+                    className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    重新请求权限
+                  </button>
+                  <button 
+                    onClick={() => setConnectionStatus('disconnected')} 
+                    className="flex-1 py-3 bg-white/10 text-white rounded-lg font-medium hover:bg-white/20 transition-colors"
+                  >
+                    稍后再说
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* 对话和虚拟人区域 */}

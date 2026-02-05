@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, RefreshCw, CheckCircle2, Sparkles, Globe, Lock, 
+import {
+  ShieldCheck, RefreshCw, CheckCircle2, Sparkles, Globe, Lock,
   Activity, Zap, Database, Cpu, Server, Wifi, Key, Eye, EyeOff
 } from 'lucide-react';
 import { aiService } from '../services/aiService';
+import { secureStorage, getApiKey, setApiKey } from '../utils/secureStorage';
+import { FeatureBadge } from './FeatureBadge';
 
 const Settings: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
@@ -20,31 +22,42 @@ const Settings: React.FC = () => {
 
   const handleSync = () => {
     setIsSyncing(true);
+    // 模拟同步延迟
     setTimeout(() => {
       setIsSyncing(false);
       setMetrics({
-        zhipu: { ping: `${Math.floor(Math.random() * 10 + 15)}ms`, uptime: '99.95%', status: 'Active' }
+        zhipu: { ping: '18ms', uptime: '99.95%', status: 'Active' }
       });
     }, 1500);
   };
 
   const handleSaveKey = () => {
-    // 将API密钥传递给AIService
-    aiService.setZhipuApiKey(zhipuApiKey);
-    // 可以选择将密钥存储在本地存储中，以便刷新页面后仍然有效
-    localStorage.setItem('zhipuApiKey', zhipuApiKey);
-    setKeySaved(true);
-    setTimeout(() => {
-      setKeySaved(false);
-    }, 2000);
+    if (!zhipuApiKey.trim()) {
+      console.warn('API密钥不能为空');
+      return;
+    }
+
+    // 使用加密存储保存API密钥
+    const success = setApiKey(zhipuApiKey);
+    
+    if (success) {
+      // 传递给AIService
+      aiService.setZhipuApiKey(zhipuApiKey);
+      setKeySaved(true);
+      setTimeout(() => {
+        setKeySaved(false);
+      }, 2000);
+    } else {
+      console.error('保存API密钥失败');
+    }
   };
 
-  // 组件加载时，从本地存储中获取之前保存的API密钥
+  // 组件加载时，从加密存储中获取API密钥
   useEffect(() => {
-    const savedZhipuKey = localStorage.getItem('zhipuApiKey');
-    if (savedZhipuKey) {
-      setZhipuApiKey(savedZhipuKey);
-      aiService.setZhipuApiKey(savedZhipuKey);
+    const savedKey = getApiKey();
+    if (savedKey) {
+      setZhipuApiKey(savedKey);
+      aiService.setZhipuApiKey(savedKey);
     }
   }, []);
 

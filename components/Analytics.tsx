@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -25,6 +25,7 @@ import { recommendationService } from '../services/recommendationService';
 import { ticketService } from '../services/ticketService';
 import ManualEvaluationPanel from './ManualEvaluationPanel';
 import CoreRuleEditor from './CoreRuleEditor';
+import { FeatureBadge } from './FeatureBadge';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -223,40 +224,28 @@ const Analytics: React.FC = () => {
     calculateStats();
   }, []);
 
-  // 实时分析功能：定期更新分析数据
+  // 数据加载：仅从本地存储加载，不进行实时更新
   useEffect(() => {
-    const updateRealTimeAnalytics = () => {
-      // 模拟实时数据更新
-      setAnalyticsData(prev => {
-        const updated = { ...prev };
-        
-        // 随机增加一些数据，模拟实时用户活动
-        updated.uniqueUsers = Math.max(prev.uniqueUsers, Math.floor(Math.random() * 100));
-        updated.avgHelpTime = Math.max(prev.avgHelpTime, Math.floor(Math.random() * 60));
-        updated.csatScore = Math.max(prev.csatScore, Math.random() * 10);
-        updated.bypassRate = Math.max(prev.bypassRate, Math.random() * 100);
-        
-        // 更新服务类型数据
-        updated.serviceTypeData = prev.serviceTypeData.map(item => ({
-          ...item,
-          proactive: item.proactive + Math.floor(Math.random() * 5),
-          reactive: item.reactive + Math.floor(Math.random() * 10)
-        }));
-        
-        // 更新问题分布数据
-        updated.issueDistribution = prev.issueDistribution.map(item => ({
-          ...item,
-          value: item.value + Math.floor(Math.random() * 3)
-        }));
-        
-        return updated;
-      });
+    const loadAnalyticsData = () => {
+      const savedData = localStorage.getItem('smartguide_analytics');
+      if (savedData) {
+        try {
+          const parsedData = JSON.parse(savedData);
+          setAnalyticsData(parsedData);
+        } catch (error) {
+          console.error('Error parsing analytics data:', error);
+          const initialData = initializeAnalyticsData();
+          setAnalyticsData(initialData);
+          localStorage.setItem('smartguide_analytics', JSON.stringify(initialData));
+        }
+      } else {
+        const initialData = initializeAnalyticsData();
+        setAnalyticsData(initialData);
+        localStorage.setItem('smartguide_analytics', JSON.stringify(initialData));
+      }
     };
 
-    // 每5秒更新一次实时数据
-    const interval = setInterval(updateRealTimeAnalytics, 5000);
-    
-    return () => clearInterval(interval);
+    loadAnalyticsData();
   }, []);
 
   // 保存分析数据到本地存储
@@ -428,7 +417,10 @@ const Analytics: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">数据分析与管理平台</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900">数据分析与管理平台</h1>
+              <FeatureBadge status="simulated" text="数据采集开发中" size="md" />
+            </div>
             <p className="text-slate-500">深度分析用户交互数据，人工评价和规则管理</p>
           </div>
           <div className="flex gap-2">

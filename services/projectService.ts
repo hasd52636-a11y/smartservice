@@ -1,4 +1,4 @@
-import { ProductProject, ProjectStatus, AIProvider, KnowledgeType } from '../types';
+import { ProductProject, ProjectStatus, ProjectConfig, AIProvider, KnowledgeType } from '../types';
 
 // 项目数据服务 - 模拟服务端数据库
 class ProjectService {
@@ -105,14 +105,23 @@ class ProjectService {
       if (saved) {
         const parsed = JSON.parse(saved) as ProductProject[];
         parsed.forEach(project => {
-          // 确保项目配置完整
-          const completeProject = {
+          const existingConfig = project.config || {} as Record<string, unknown>;
+          const completeProject: ProductProject = {
             ...project,
             config: {
-              provider: AIProvider.ZHIPU,
-              videoGuides: [],
-              ...project.config
-            },
+              provider: (existingConfig.provider as string) || AIProvider.ZHIPU,
+              voiceName: (existingConfig.voiceName as string) || 'tongtong',
+              visionEnabled: (existingConfig.visionEnabled as boolean) ?? true,
+              visionPrompt: (existingConfig.visionPrompt as string) || '',
+              systemInstruction: (existingConfig.systemInstruction as string) || '',
+              videoGuides: (existingConfig.videoGuides as string[]) || [],
+              multimodalEnabled: (existingConfig.multimodalEnabled as boolean) ?? true,
+              videoChatEnabled: (existingConfig.videoChatEnabled as boolean) ?? true,
+              videoChatPrompt: (existingConfig.videoChatPrompt as string) || '',
+              avatarEnabled: (existingConfig.avatarEnabled as boolean) ?? true,
+              annotationEnabled: (existingConfig.annotationEnabled as boolean) ?? true,
+              ...existingConfig
+            } as ProjectConfig,
             knowledgeBase: project.knowledgeBase || []
           };
           this.projects.set(project.id, completeProject);

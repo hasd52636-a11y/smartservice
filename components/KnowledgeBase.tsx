@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Upload, FileText, BookOpen, Trash2, Loader2, CheckCircle, AlertCircle, Plus, Brain } from 'lucide-react';
+import { Search, Upload, FileText, BookOpen, Trash2, Loader2, CheckCircle, AlertCircle, Plus } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import { ZhipuModel } from '../services/aiService';
 import { KnowledgeType } from '../types';
@@ -102,13 +102,13 @@ const KnowledgeBase: React.FC = () => {
   };
 
   // 生成文档向量
-  const generateEmbedding = async (text: string): Promise<number[]> => {
+  const createDocumentEmbedding = async (text: string): Promise<number[]> => {
     try {
-      const embedding = await aiService.generateEmbedding(text);
+      const embedding = await aiService.createEmbedding(text);
       return embedding;
     } catch (error) {
       console.error('生成向量失败:', error);
-      return Array(768).fill(0); // 返回零向量作为备用
+      return Array(768).fill(0);
     }
   };
 
@@ -123,7 +123,7 @@ const KnowledgeBase: React.FC = () => {
     
     try {
       // 生成文档向量
-      const embedding = await generateEmbedding(newDocument.content);
+      const embedding = await createDocumentEmbedding(newDocument.content);
       
       const newDoc: GlobalKnowledgeDocument = {
         id: `global_${Date.now()}`,
@@ -229,7 +229,7 @@ const KnowledgeBase: React.FC = () => {
         );
       } else {
         // 向量搜索
-        const queryEmbedding = await generateEmbedding(searchQuery);
+        const queryEmbedding = await createDocumentEmbedding(searchQuery);
         const results = documents
           .map(doc => {
             const similarity = calculateCosineSimilarity(queryEmbedding, doc.embedding);
@@ -341,7 +341,8 @@ const KnowledgeBase: React.FC = () => {
 
     try {
       // 调用AI服务自动分类
-      const category = await aiService.categorizeDocument(doc.content);
+      const defaultCategories = ['使用说明', '安装指南', '故障排查', '维护保养', '常见问题'];
+      const category = await aiService.categorizeDocument(doc.content, defaultCategories);
       
       // 更新文档分类
       const updatedDoc = {
@@ -388,6 +389,16 @@ const KnowledgeBase: React.FC = () => {
         <div className="mb-8">
           <h1 className="text-4xl font-black text-white mb-4">全局知识库管理</h1>
           <p className="text-slate-300">管理全局知识库，为所有产品提供通用知识支持</p>
+
+          {/* 标签页切换 */}
+          <div className="flex gap-4 mt-6">
+            <button
+              className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-white text-purple-600 shadow-lg"
+            >
+              <BookOpen size={20} />
+              文档管理
+            </button>
+          </div>
         </div>
 
         {/* 消息提示 */}
@@ -462,7 +473,7 @@ const KnowledgeBase: React.FC = () => {
                 disabled={isVectorizing}
                 className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isVectorizing ? <Loader2 size={18} className="animate-spin" /> : <Brain size={18} />}
+                {isVectorizing ? <Loader2 size={18} className="animate-spin" /> : <BookOpen size={18} />}
                 AI摘要
               </button>
             </div>
@@ -636,7 +647,7 @@ const KnowledgeBase: React.FC = () => {
                       <h4 className="font-bold text-slate-800">{doc.title}</h4>
                       {doc.vectorized && (
                         <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full flex items-center gap-1">
-                          <Brain size={12} />
+                          <BookOpen size={12} />
                           已向量化
                         </span>
                       )}
@@ -682,6 +693,9 @@ const KnowledgeBase: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* 知识图谱标签页 */}
+        {/* 已移至独立页面 /admin/graph */}
       </div>
     </div>
   );

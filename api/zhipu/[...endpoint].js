@@ -1,5 +1,19 @@
 const axios = require('axios');
 
+// 严格配置允许的来源
+const allowedOrigins = [
+  'https://sora.wboke.com',
+  'http://localhost:3003',
+  'http://localhost:3000',
+  'http://127.0.0.1:3003',
+  'http://127.0.0.1:3000'
+];
+
+// 验证来源是否允许
+const isOriginAllowed = (origin) => {
+  return allowedOrigins.includes(origin);
+};
+
 // 智谱AI API配置
 const ZHIPU_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
 
@@ -51,12 +65,17 @@ function handleStreamingResponse(response, res) {
 }
 
 module.exports = async (req, res) => {
-  // 处理CORS预检请求
+  // 处理CORS预检请求 - 严格验证
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).end();
+    const origin = req.headers.origin;
+    if (origin && isOriginAllowed(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Max-Age', '3600');
+      return res.status(200).end();
+    }
+    return res.status(403).end();
   }
 
   try {
@@ -118,17 +137,13 @@ module.exports = async (req, res) => {
 
     const response = await axios(axiosConfig);
 
-    // 设置CORS头 - 限制为可信来源
-    const allowedOrigins = [
-      'https://sora.wboke.com',
-      'http://localhost:3003',
-      'http://localhost:3000',
-      'http://127.0.0.1:3003',
-      'http://127.0.0.1:3000'
-    ];
+    // 设置CORS头 - 严格限制为可信来源
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
+    if (origin && isOriginAllowed(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      // 不设置Allow-Origin头，拒绝未知来源
+      console.warn(`Rejected request from unauthorized origin: ${origin}`);
     }
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -143,17 +158,10 @@ module.exports = async (req, res) => {
     console.error('=== Zhipu API Proxy Error ===');
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
-    
-    // 设置CORS头 - 限制为可信来源
-    const allowedOrigins = [
-      'https://sora.wboke.com',
-      'http://localhost:3003',
-      'http://localhost:3000',
-      'http://127.0.0.1:3003',
-      'http://127.0.0.1:3000'
-    ];
+
+    // 设置CORS头 - 严格限制为可信来源
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
+    if (origin && isOriginAllowed(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     }
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

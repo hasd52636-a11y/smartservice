@@ -678,6 +678,7 @@ export class AIService {
     responseFormat?: { type: 'text' | 'json_object' };
     projectConfig?: any;
     toolConfig?: ToolConfig;
+    toolResults?: Array<{ tool: string; result: string }>;
   }) {
     // 验证输入参数
     const validation = InputValidator.validateTextInput(prompt);
@@ -1086,12 +1087,16 @@ export class AIService {
   // 智谱模型语音识别
   async recognizeSpeech(audioData: string, provider: AIProvider): Promise<string | undefined> {
     // 检查API密钥是否存在
-    if (!this.zhipuApiKey) {
-      return this.generateMockSpeechRecognition();
+    const apiKey = this.getZhipuApiKey();
+    if (!apiKey) {
+      console.warn('Zhipu API key not set, using mock speech recognition');
+      const mockResult = this.generateMockSpeechRecognition();
+      return mockResult;
     }
 
     if (provider === AIProvider.ZHIPU) {
       try {
+        console.log('Sending speech recognition request to Zhipu AI');
         const data = await this.zhipuFetch('/chat/completions', {
           model: 'glm-4-voice',
           messages: [{
@@ -1105,14 +1110,19 @@ export class AIService {
           }],
           temperature: 0.1
         });
+        console.log('Speech recognition response received');
         return data.choices[0].message.content;
       } catch (e) {
         console.error("Zhipu Speech Recognition Failed", e);
-        return this.generateMockSpeechRecognition();
+        const mockResult = this.generateMockSpeechRecognition();
+        console.log('Using mock speech recognition result:', mockResult);
+        return mockResult;
       }
     }
 
-    return this.generateMockSpeechRecognition();
+    const mockResult = this.generateMockSpeechRecognition();
+    console.log('Using mock speech recognition result:', mockResult);
+    return mockResult;
   }
 
   // 获取优质交互模板
@@ -1244,12 +1254,15 @@ export class AIService {
 
   async generateSpeech(text: string, voiceName: string, provider: AIProvider): Promise<string | undefined> {
     // 检查API密钥是否存在
-    if (!this.zhipuApiKey) {
+    const apiKey = this.getZhipuApiKey();
+    if (!apiKey) {
+      console.warn('Zhipu API key not set, TTS functionality disabled');
       return undefined;
     }
 
     // 仅使用智谱AI实现
     try {
+      console.log('Sending TTS request to Zhipu AI');
       const buffer = await this.zhipuFetch('/audio/speech', {
         model: 'GLM-TTS',
         input: text,
@@ -1260,7 +1273,9 @@ export class AIService {
       const uint8 = new Uint8Array(buffer as ArrayBuffer);
       let binary = '';
       for (let i = 0; i < uint8.byteLength; i++) binary += String.fromCharCode(uint8[i]);
-      return window.btoa(binary);
+      const base64Audio = window.btoa(binary);
+      console.log('TTS response received, audio generated successfully');
+      return base64Audio;
     } catch (e) {
       console.error("Zhipu TTS Failed", e);
       return undefined;
@@ -1745,6 +1760,93 @@ export class AIService {
     }
     
     return dotProduct / (magnitude1 * magnitude2);
+  }
+
+  // 文档摘要生成
+  async summarizeDocument(content: string, options?: {
+    maxLength?: number;
+    language?: string;
+  }): Promise<string> {
+    const requestBody = {
+      model: ZhipuModel.GLM_4_7,
+      messages: [
+        {
+          role: 'system',
+          content: `请对以下内容进行摘要，生成简洁明了的摘要。目标语言：${options?.language || '中文'}`
+        },
+        {
+          role: 'user',
+          content: content
+        }
+      ],
+      max_tokens: options?.maxLength || 500,
+      temperature: 0.3
+    };
+
+    try {
+      const response = await this.zhipuFetch('/chat/completions', requestBody);
+      return response.choices?.[0]?.message?.content || '摘要生成失败';
+    } catch (error) {
+      console.error('Document summarization failed:', error);
+      return '摘要生成失败，请稍后重试';
+    }
+  }
+
+  // 文档分类
+  async categorizeDocument(content: string, categories: string[]): Promise<string> {
+    const requestBody = {
+      model: ZhipuModel.GLM_4_7,
+      messages: [
+        {
+          role: 'system',
+          content: `请将以下内容分类到以下类别之一：${categories.join('、')}。只返回类别名称。`
+        },
+        {
+          role: 'user',
+          content: content
+        }
+      ],
+      max_tokens: 50,
+      temperature: 0.1
+    };
+
+    try {
+      const response = await this.zhipuFetch('/chat/completions', requestBody);
+      return response.choices?.[0]?.message?.content || categories[0];
+    } catch (error) {
+      console.error('Document categorization failed:', error);
+      return categories[0] || '未分类';
+    }
+  }
+
+  // 关键词提取
+  async extractKeywords(content: string, options?: {
+    maxKeywords?: number;
+  }): Promise<string[]> {
+    const requestBody = {
+      model: ZhipuModel.GLM_4_7,
+      messages: [
+        {
+          role: 'system',
+          content: `请从以下内容中提取关键关键词，最多提取${options?.maxKeywords || 5}个关键词，用逗号分隔返回。`
+        },
+        {
+          role: 'user',
+          content: content
+        }
+      ],
+      max_tokens: 100,
+      temperature: 0.3
+    };
+
+    try {
+      const response = await this.zhipuFetch('/chat/completions', requestBody);
+      const keywordsText = response.choices?.[0]?.message?.content || '';
+      return keywordsText.split(/[,，]/).map(k => k.trim()).filter(k => k.length > 0);
+    } catch (error) {
+      console.error('Keyword extraction failed:', error);
+      return [];
+    }
   }
 
   // 生成模拟响应（当没有API密钥时使用）

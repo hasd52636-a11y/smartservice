@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ProductProject } from '../types';
-import { Send, Image as ImageIcon, Loader2, ChevronLeft, Mic, Camera, Volume2 } from 'lucide-react';
+import { Send, Image as ImageIcon, Loader2, ChevronLeft, Mic, Camera, Volume2, Video } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { mapUICustomizationToCSSVariables } from '../utils/cssVariables';
 import { aiService } from '../services/aiService';
@@ -118,7 +118,13 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
       setIsVoiceRecording(true);
     } catch (error) {
       console.error('无法访问麦克风:', error);
-      alert('无法访问麦克风，请检查权限设置');
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        alert('麦克风权限被拒绝，请在浏览器设置中允许权限后重试。\n\n步骤：\n1. 点击浏览器地址栏左侧的锁图标\n2. 在权限设置中允许麦克风\n3. 刷新页面后重试');
+      } else if (error instanceof Error && error.name === 'NotFoundError') {
+        alert('未检测到麦克风设备，请确保设备已连接并正常工作。');
+      } else {
+        alert('无法访问麦克风：' + (error instanceof Error ? error.message : '未知错误'));
+      }
     }
   };
 
@@ -131,26 +137,70 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
 
   const processVoiceRecording = async (audioBlob: Blob) => {
     try {
+      // 显示语音处理中状态
+      setIsTyping(true);
+      
       // 转换为 base64
       const reader = new FileReader();
       reader.onload = async () => {
-        const base64Audio = (reader.result as string).split(',')[1];
-        
-        // 调用语音识别服务
-        const recognizedText = await aiService.recognizeSpeech(base64Audio, project.config.provider);
-        if (recognizedText) {
-          await sendMessage(recognizedText);
+        try {
+          const base64Audio = (reader.result as string).split(',')[1];
+          
+          // 调用语音识别服务
+          console.log('Processing voice recording...');
+          const recognizedText = await aiService.recognizeSpeech(base64Audio, project.config.provider);
+          console.log('Voice recognition result:', recognizedText);
+          
+          if (recognizedText) {
+            await sendMessage(recognizedText);
+          } else {
+            // 识别失败，添加提示消息
+            setMessages(prev => [...prev, { 
+              id: `system_${Date.now()}`, 
+              role: 'assistant', 
+              content: '语音识别失败，请尝试重新录制或直接输入文字。',
+              timestamp: new Date()
+            }]);
+            setIsTyping(false);
+          }
+        } catch (error) {
+          console.error('语音识别处理失败:', error);
+          setMessages(prev => [...prev, { 
+            id: `system_${Date.now()}`, 
+            role: 'assistant', 
+            content: '语音识别处理失败，请尝试重新录制或直接输入文字。',
+            timestamp: new Date()
+          }]);
+          setIsTyping(false);
         }
+      };
+      reader.onerror = () => {
+        console.error('文件读取失败');
+        setMessages(prev => [...prev, { 
+          id: `system_${Date.now()}`, 
+          role: 'assistant', 
+          content: '语音文件处理失败，请尝试重新录制或直接输入文字。',
+          timestamp: new Date()
+        }]);
+        setIsTyping(false);
       };
       reader.readAsDataURL(audioBlob);
     } catch (error) {
       console.error('语音识别失败:', error);
+      setMessages(prev => [...prev, { 
+        id: `system_${Date.now()}`, 
+        role: 'assistant', 
+        content: '语音识别失败，请尝试重新录制或直接输入文字。',
+        timestamp: new Date()
+      }]);
+      setIsTyping(false);
     }
   };
 
   // TTS 播放功能
   const playTTS = async (text: string) => {
     try {
+      console.log('Generating speech for:', text.substring(0, 50) + '...');
       const audioData = await aiService.generateSpeech(
         text, 
         project.config.voiceName || 'tongtong', 
@@ -158,11 +208,33 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
       );
       
       if (audioData) {
+        console.log('Speech generated successfully, playing...');
         const audio = new Audio(`data:audio/wav;base64,${audioData}`);
-        audio.play();
+        
+        audio.onplay = () => {
+          console.log('TTS playback started');
+        };
+        
+        audio.onerror = (error) => {
+          console.error('Audio playback error:', error);
+        };
+        
+        audio.onended = () => {
+          console.log('TTS playback finished');
+        };
+        
+        audio.play().catch(playError => {
+          console.error('Failed to play audio:', playError);
+        });
+      } else {
+        console.warn('No audio data received from TTS service');
+        // 可以添加用户提示，但不建议频繁弹窗
+        // alert('语音播放功能暂时不可用，请检查API密钥配置。');
       }
     } catch (error) {
       console.error('TTS播放失败:', error);
+      // 可以添加用户提示，但不建议频繁弹窗
+      // alert('语音播放失败，请检查网络连接或API密钥配置。');
     }
   };
 
@@ -447,6 +519,17 @@ const ChatContainer: React.FC<Props> = ({ project, onBack }) => {
             className="p-3 sm:p-2 transition-colors hover:opacity-70"
           >
             <ImageIcon size={24} className="sm:size-5" />
+          </button>
+          <button 
+            onClick={() => {
+              // 导航到视频聊天页面
+              window.location.href = `/video/${project.id}`;
+            }}
+            style={{ color: 'var(--input-placeholder)' }}
+            className="p-3 sm:p-2 transition-colors hover:opacity-70"
+            title="视频聊天"
+          >
+            <Video size={24} className="sm:size-5" />
           </button>
 
           {/* 输入框 */}

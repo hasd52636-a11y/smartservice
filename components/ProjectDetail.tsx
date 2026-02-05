@@ -929,16 +929,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ projects, onUpdate }) => 
                               }
                           };
                           autoSave(updatedProject);
-                          
-                          // 同时保存到 localStorage，确保用户页面即时生效
+
+                          // 清除可能存在的无效主题数据
                           if (localProject?.id) {
-                            localStorage.setItem(`project_${localProject.id}_theme`, JSON.stringify({
-                              selectedTheme: template.id,
-                              primaryColor: template.colors[0],
-                              backgroundColor: template.colors[1],
-                              textColor: template.colors[2],
-                              updatedAt: new Date().toISOString()
-                            }));
+                            localStorage.removeItem(`project_${localProject.id}_theme`);
                           }
                         }}
                         />
